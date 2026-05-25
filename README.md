@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Relatório Semanal — Clínicas
 
-## Getting Started
+Aplicação web interna para geração de relatórios semanais de múltiplas clínicas de saúde, formatados para envio via WhatsApp.
 
-First, run the development server:
+## O que faz
+
+Consolida dados de 4 fontes e gera um relatório formatado por clínica:
+
+| Fonte | Dados |
+|---|---|
+| Google Sheets (pesquisa pré-consulta) | Satisfação antes da consulta |
+| Google Sheets (pesquisa NPS) | Net Promoter Score pós-consulta |
+| Google Places API | Avaliações e nota no Google Maps |
+| Supabase (banco) | Metas semanais por clínica |
+
+## Stack
+
+- **Framework:** Next.js 15 (App Router) + TypeScript
+- **UI:** Tailwind CSS + shadcn/ui (estilo new-york, cor neutral)
+- **Banco de dados:** Supabase (PostgreSQL)
+- **Integrações:** Google Sheets API v4, Google Places API
+- **Validação:** Zod + React Hook Form
+- **Deploy:** Vercel
+
+## Como rodar localmente
+
+### Pré-requisitos
+
+- Node.js 20+
+- npm 10+
+- Conta no Supabase
+- Projeto no Google Cloud com Sheets API e Places API habilitadas
+
+### 1. Clone e instale dependências
+
+```bash
+git clone <repo-url>
+cd report-semanal-clinicas
+npm install
+```
+
+### 2. Configure as variáveis de ambiente
+
+```bash
+cp .env.example .env.local
+```
+
+Preencha cada variável no `.env.local` conforme as instruções do `.env.example`.
+
+### 3. Configure o Supabase
+
+> As migrations serão documentadas na próxima etapa do projeto.
+
+### 4. Rode o servidor de desenvolvimento
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estrutura de pastas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  (auth)/login/        → Página de login
+  (app)/
+    dashboard/         → Visão geral
+    clinicas/          → Gerenciamento de clínicas
+    relatorio/         → Geração de relatórios
+  layout.tsx           → Layout raiz (Toaster global)
+components/
+  ui/                  → Componentes shadcn/ui
+lib/
+  supabase/
+    client.ts          → Cliente Supabase (browser)
+    server.ts          → Cliente Supabase (server-side / SSR)
+  types.ts             → Tipos TypeScript compartilhados
+middleware.ts          → Proteção de rotas (auth)
+```
 
-## Learn More
+## Deploy na Vercel
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Conecte o repositório na Vercel
+2. Adicione todas as variáveis de `.env.example` nas configurações do projeto
+3. O deploy é automático a cada push na branch `main`
