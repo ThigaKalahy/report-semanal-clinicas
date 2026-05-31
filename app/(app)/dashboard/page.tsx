@@ -1,8 +1,13 @@
-export default function DashboardPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="text-muted-foreground mt-2">— placeholder —</p>
-    </div>
-  );
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { DashboardClient, type RelatorioComClinica } from "./_components/dashboard-client";
+
+export default async function DashboardPage() {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("relatorios_gerados")
+    .select("*, clinicas(nome)")
+    .order("gerado_em", { ascending: false })
+    .limit(20);
+
+  return <DashboardClient relatorios={(data ?? []) as unknown as RelatorioComClinica[]} />;
 }
