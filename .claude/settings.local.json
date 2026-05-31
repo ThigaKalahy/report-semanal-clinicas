@@ -8,7 +8,14 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(pkill -f \"next dev\")",
-      "PowerShell(taskkill /PID 5072 /F)"
+      "PowerShell(taskkill /PID 5072 /F)",
+      "Bash(cat tailwind.config.ts)",
+      "Bash(cat tailwind.config.js)",
+      "Bash(cat postcss.config.mjs)",
+      "Bash(ls *.config*)",
+      "Bash(ls *.config.*)",
+      "Bash(npm list *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

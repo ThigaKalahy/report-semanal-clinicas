@@ -3,75 +3,127 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── Gestfy brand raw variables (available in both themes) ─── */
+:root {
+  --gestfy-purple-deep: #1E0143;
+  --gestfy-purple: #7A0A9A;
+  --gestfy-magenta: #D02585;
+  --gestfy-orange: #FA471E;
+  --gestfy-orange-title: #F4500F;
+  --gestfy-dark-bg: #210246;
+  --gestfy-card: #440570;
+  --gestfy-card-soft: #3F0B5D;
+  --gestfy-alert-bg: #2F0342;
+  --gestfy-lavender: #B9A3D4;
+}
+
+/* ─── Light theme (:root) ─────────────────────────────────────── */
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.13 0.03 295);
+
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.13 0.03 295);
+
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.13 0.03 295);
+
+  /* primary = gestfy-purple #7A0A9A */
+  --primary: oklch(0.41 0.22 305);
+  --primary-foreground: oklch(1 0 0);
+
+  /* secondary = lavanda muito claro */
+  --secondary: oklch(0.96 0.02 295);
+  --secondary-foreground: oklch(0.41 0.22 305);
+
+  /* muted = lavanda sutíl */
+  --muted: oklch(0.96 0.015 295);
+  --muted-foreground: oklch(0.5 0.06 295);
+
+  /* accent = gestfy-orange #FA471E */
+  --accent: oklch(0.65 0.22 30);
+  --accent-foreground: oklch(1 0 0);
+
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+
+  --border: oklch(0.9 0.025 295);
+  --input: oklch(0.92 0.02 295);
+  --ring: oklch(0.41 0.22 305);
+
   --radius: 0.5rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* sidebar */
+  --sidebar: oklch(0.98 0.01 295);
+  --sidebar-foreground: oklch(0.13 0.03 295);
+  --sidebar-primary: oklch(0.41 0.22 305);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.03 305);
+  --sidebar-accent-foreground: oklch(0.41 0.22 305);
+  --sidebar-border: oklch(0.88 0.03 295);
+  --sidebar-ring: oklch(0.41 0.22 305);
+
+  /* charts */
+  --chart-1: oklch(0.41 0.22 305);
+  --chart-2: oklch(0.55 0.24 335);
+  --chart-3: oklch(0.65 0.22 30);
+  --chart-4: oklch(0.7 0.14 295);
+  --chart-5: oklch(0.75 0.18 310);
 }
 
+/* ─── Dark theme (.dark) — visual roxo da marca ──────────────── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* background = gestfy-dark-bg #210246 */
+  --background: oklch(0.11 0.09 305);
+  --foreground: oklch(0.97 0.01 305);
+
+  /* card = gestfy-card #440570 */
+  --card: oklch(0.21 0.13 305);
+  --card-foreground: oklch(0.97 0.01 305);
+
+  --popover: oklch(0.18 0.12 305);
+  --popover-foreground: oklch(0.97 0.01 305);
+
+  /* primary = gestfy-magenta #D02585 */
+  --primary: oklch(0.59 0.24 340);
+  --primary-foreground: oklch(1 0 0);
+
+  /* secondary = gestfy-card-soft #3F0B5D */
+  --secondary: oklch(0.19 0.11 305);
+  --secondary-foreground: oklch(0.9 0.04 305);
+
+  /* muted = roxo intermediário */
+  --muted: oklch(0.19 0.11 305);
+  --muted-foreground: oklch(0.72 0.09 305);
+
+  /* accent = gestfy-orange #FA471E */
+  --accent: oklch(0.65 0.22 30);
+  --accent-foreground: oklch(1 0 0);
+
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.59 0.24 340);
+
+  /* sidebar */
+  --sidebar: oklch(0.14 0.1 305);
+  --sidebar-foreground: oklch(0.9 0.03 305);
+  --sidebar-primary: oklch(0.59 0.24 340);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.21 0.13 305);
+  --sidebar-accent-foreground: oklch(0.9 0.03 305);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.59 0.24 340);
+
+  /* charts */
+  --chart-1: oklch(0.59 0.24 340);
+  --chart-2: oklch(0.65 0.22 30);
+  --chart-3: oklch(0.72 0.09 305);
+  --chart-4: oklch(0.41 0.22 305);
+  --chart-5: oklch(0.75 0.18 310);
 }
 
+/* ─── Tailwind v4 @theme — expõe utilitárias ─────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -96,10 +148,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -108,8 +156,31 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Gestfy brand colors como utilitárias Tailwind */
+  --color-gestfy-purple-deep: #1E0143;
+  --color-gestfy-purple: #7A0A9A;
+  --color-gestfy-magenta: #D02585;
+  --color-gestfy-orange: #FA471E;
+  --color-gestfy-orange-title: #F4500F;
+  --color-gestfy-dark-bg: #210246;
+  --color-gestfy-card: #440570;
+  --color-gestfy-card-soft: #3F0B5D;
+  --color-gestfy-alert-bg: #2F0342;
+  --color-gestfy-lavender: #B9A3D4;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* ─── Utilitária de gradiente da marca ───────────────────────── */
+@utility bg-gestfy-gradient {
+  background-image: linear-gradient(135deg, #1E0143 0%, #7A0A9A 45%, #D02585 100%);
 }
 
 @layer base {
