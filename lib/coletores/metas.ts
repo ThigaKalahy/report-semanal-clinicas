@@ -49,18 +49,32 @@ export async function coletarMetas(
   const currentAno = today.getFullYear();
   const diasTotal = diasUteisDoMes(mes, ano, feriadosDatas);
 
+  // Usa dataRef como referência: conta dias úteis do início do mês até dataRef.
+  // Para meses futuros (nenhum dia decorrido): 0.
+  // Para meses passados ou atual: diasUteisDecorridos(dataRef) — correto mesmo que o
+  // resultado seja igual a diasTotal (fim de mês), pois a proporção é 100%.
   let diasDecorridos: number;
-  if (ano < currentAno || (ano === currentAno && mes < currentMes)) {
-    diasDecorridos = diasTotal;
-  } else if (ano === currentAno && mes === currentMes) {
-    diasDecorridos = diasUteisDecorridos(dataRef, feriadosDatas);
-  } else {
+  if (ano > currentAno || (ano === currentAno && mes > currentMes)) {
     diasDecorridos = 0;
+  } else {
+    diasDecorridos = diasUteisDecorridos(dataRef, feriadosDatas);
   }
+
+  console.log("[metas] diagnóstico:", {
+    dataRef: dataRef.toISOString(),
+    mes,
+    ano,
+    diasUteisTotalMes: diasTotal,
+    diasUteisDecorridos: diasDecorridos,
+  });
 
   return metas.map((meta) => {
     const tipo = meta.tipos_meta;
     const meta_periodo = calcularMetaPeriodo(meta.valor_meta_mensal, diasDecorridos, diasTotal);
+    console.log(`[metas] "${tipo.nome}":`, {
+      valor_meta_mensal: meta.valor_meta_mensal,
+      metaPeriodo: meta_periodo,
+    });
     const performance = descreverPerformance(
       meta.valor_realizado,
       meta_periodo,

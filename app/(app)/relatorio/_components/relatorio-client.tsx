@@ -24,6 +24,7 @@ import { SEPARATOR } from "@/lib/relatorio/montar-whatsapp";
 import type { Clinica } from "@/lib/supabase/types";
 import type {
   RelatorioImagemData, DestaqueItem, TipoDestaque,
+  FaturamentoVisao, NpsGoogleVisao,
 } from "@/lib/relatorio/imagem-tipos";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -99,40 +100,113 @@ function ListaDestaques({items,onChange}:{items:DestaqueItem[];onChange:(v:Desta
   );
 }
 
+// ─── Helpers para % calculado a partir de strings formatadas BR ──────────────
+function parseFmtNum(s: string): number | null {
+  if (!s || s === "N/A" || s === "—") return null;
+  const n = parseFloat(s.replace(/R\$\s*/g, "").replace(/\./g, "").replace(",", "."));
+  return isNaN(n) ? null : n;
+}
+function calcPct(num: number | string | null | undefined, den: number | string | null | undefined): number | null {
+  const n = typeof num === "string" ? parseFmtNum(num) : (num ?? null);
+  const d = typeof den === "string" ? parseFmtNum(den) : (den ?? null);
+  if (n === null || d === null || d === 0) return null;
+  return Math.round((n / d) * 100);
+}
+function ReadOnlyPct({ value }: { value: number | null }) {
+  return (
+    <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+      {value !== null ? `${value}%` : "—"}
+    </div>
+  );
+}
+
 // ─── Formulário de dados do infográfico ───────────────────────────────────────
 function FormImagem({dados,onChange}:{dados:RelatorioImagemData;onChange:(d:RelatorioImagemData)=>void}) {
   const {visaoGeral,destaques,alertas,acoes}=dados;
   const fat=visaoGeral.faturamento,ng=visaoGeral.npsGoogle,com=visaoGeral.comercial;
+
+  function onFatChange(patch: Partial<FaturamentoVisao>) {
+    const newFat={...fat,...patch};
+    const pctPeriodo=calcPct(newFat.acumulado, newFat.meta_periodo);
+    const pctMensal=calcPct(newFat.acumulado, newFat.meta_mensal);
+    onChange({...dados,visaoGeral:{...visaoGeral,faturamento:{
+      ...newFat,
+      pct_periodo: pctPeriodo,
+      acima_periodo: (pctPeriodo??0)>=100,
+      pct_mensal: pctMensal,
+      acima_mensal: (pctMensal??0)>=100,
+    }}});
+  }
+
+  function onNgChange(patch: Partial<NpsGoogleVisao>) {
+    onChange({...dados,visaoGeral:{...visaoGeral,npsGoogle:{...ng,...patch}}});
+  }
+
+  const pctNps=calcPct(ng.respostas_nps, ng.meta_nps_meta);
+  const pctGoogle=calcPct(ng.avaliacoes_google, ng.meta_google_meta);
+
+  const FAT_FIELDS:[keyof FaturamentoVisao,string][]=[
+    ["realizado_semana","Realizado semanal"],
+    ["acumulado","Acumulado"],
+    ["meta_periodo","Meta do período"],
+    ["meta_mensal","Meta mensal"],
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Faturamento */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Faturamento x Meta</h3>
         <div className="grid grid-cols-2 gap-3">
-          {([["realizado_semana","Realizado semanal"],["acumulado","Acumulado"],["meta_periodo","Meta do período"],["meta_mensal","Meta mensal"]] as [keyof typeof fat,string][]).map(([k,l])=>(
+          {FAT_FIELDS.map(([k,l])=>(
             <div key={k} className="space-y-1"><Label className="text-xs">{l}</Label>
-              <Input value={(fat as unknown as Record<string,unknown>)[k] as string??""}
-                onChange={e=>onChange({...dados,visaoGeral:{...visaoGeral,faturamento:{...fat,[k]:e.target.value}}})} className="text-sm"/>
+              <Input value={(fat as unknown as Record<string,string>)[k]??""}
+                onChange={e=>onFatChange({[k]:e.target.value} as Partial<FaturamentoVisao>)} className="text-sm"/>
             </div>
           ))}
-          {([["pct_periodo","% do período"],["pct_mensal","% da meta mensal"]] as [keyof typeof fat,string][]).map(([k,l])=>(
-            <div key={k} className="space-y-1"><Label className="text-xs">{l}</Label>
-              <Input type="number" value={((fat as unknown as Record<string, number | null | undefined>)[k]) ?? ""} placeholder="—"
-                onChange={e=>onChange({...dados,visaoGeral:{...visaoGeral,faturamento:{...fat,[k]:e.target.value===""?null:Number(e.target.value)}}})} className="text-sm"/>
-            </div>
-          ))}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">% do período (auto)</Label>
+            <ReadOnlyPct value={fat.pct_periodo}/>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">% da meta mensal (auto)</Label>
+            <ReadOnlyPct value={fat.pct_mensal}/>
+          </div>
         </div>
       </div>
+
+      {/* NPS / Google */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">NPS / Google</h3>
         <div className="grid grid-cols-2 gap-3">
-          {(["respostas_nps","avaliacoes_google","meta_nps_realizado","meta_nps_meta","meta_nps_pct","meta_google_realizado","meta_google_meta","meta_google_pct"] as (keyof typeof ng)[]).map(k=>(
-            <div key={k} className="space-y-1"><Label className="text-xs">{k.replace(/_/g," ")}</Label>
-              <Input type="number" value={((ng as unknown as Record<string, number | null | undefined>)[k]) ?? ""} placeholder="—"
-                onChange={e=>onChange({...dados,visaoGeral:{...visaoGeral,npsGoogle:{...ng,[k]:e.target.value===""?null:Number(e.target.value)}}})} className="text-sm"/>
-            </div>
-          ))}
+          <div className="space-y-1"><Label className="text-xs">Respostas NPS</Label>
+            <Input type="number" value={ng.respostas_nps??""} placeholder="—"
+              onChange={e=>onNgChange({respostas_nps:e.target.value===""?null:Number(e.target.value)})} className="text-sm"/>
+          </div>
+          <div className="space-y-1"><Label className="text-xs">Avaliações Google</Label>
+            <Input type="number" value={ng.avaliacoes_google??""} placeholder="—"
+              onChange={e=>onNgChange({avaliacoes_google:e.target.value===""?null:Number(e.target.value)})} className="text-sm"/>
+          </div>
+          <div className="space-y-1"><Label className="text-xs">Meta NPS (alvo)</Label>
+            <Input type="number" value={ng.meta_nps_meta??""} placeholder="—"
+              onChange={e=>onNgChange({meta_nps_meta:e.target.value===""?null:Number(e.target.value)})} className="text-sm"/>
+          </div>
+          <div className="space-y-1"><Label className="text-xs">Meta Google (alvo)</Label>
+            <Input type="number" value={ng.meta_google_meta??""} placeholder="—"
+              onChange={e=>onNgChange({meta_google_meta:e.target.value===""?null:Number(e.target.value)})} className="text-sm"/>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">% NPS (auto)</Label>
+            <ReadOnlyPct value={pctNps}/>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">% Google (auto)</Label>
+            <ReadOnlyPct value={pctGoogle}/>
+          </div>
         </div>
       </div>
+
+      {/* Comercial */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Comercial &amp; Conversão</h3>
         <div className="grid grid-cols-2 gap-3">
@@ -144,6 +218,7 @@ function FormImagem({dados,onChange}:{dados:RelatorioImagemData;onChange:(d:Rela
           ))}
         </div>
       </div>
+
       <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Principais Destaques</h3><ListaDestaques items={destaques} onChange={v=>onChange({...dados,destaques:v})}/></div>
       <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Alertas</h3><ListaEditavel items={alertas} onChange={v=>onChange({...dados,alertas:v})} placeholder="Texto do alerta…"/></div>
       <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Ações Sugeridas</h3><ListaEditavel items={acoes} onChange={v=>onChange({...dados,acoes:v})} placeholder="Texto da ação…"/></div>
@@ -320,7 +395,7 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Gerar Relatório</h1>
+      <h1 className="text-2xl font-bold">Gerar Report Semanal</h1>
 
       {/* ── Form ── */}
       <Card>

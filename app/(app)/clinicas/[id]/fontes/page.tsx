@@ -2,9 +2,10 @@ export const revalidate = 0;
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, DollarSign, Receipt, Users } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { FonteSection } from "./_components/fonte-section";
+import { Badge } from "@/components/ui/badge";
 import type { FonteDados } from "@/lib/supabase/types";
 
 interface Props {
@@ -63,6 +64,36 @@ export default async function FontesPage({ params }: Props) {
         clinicaId={id}
         fonte={nps ?? null}
       />
+
+      {/* ── Módulos em desenvolvimento ────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground border border-dashed rounded-md px-4 py-2">
+          Módulos em desenvolvimento — disponíveis em breve para integração.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {([
+            { icon: DollarSign, label: "Faturamento", desc: "Integração com dados de receita e faturamento da clínica." },
+            { icon: Receipt,    label: "Despesa",     desc: "Controle de despesas operacionais e custos fixos." },
+            { icon: Users,      label: "Leads",       desc: "Pipeline de leads e conversão de novos pacientes." },
+          ] as const).map(({ icon: Icon, label, desc }) => (
+            <div
+              key={label}
+              className="rounded-lg border bg-card p-5 opacity-50 select-none"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-sm">{label}</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                  Em breve
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

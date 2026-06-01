@@ -236,16 +236,11 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
         acima_mensal:     f?.acima_mensal     ?? false,
       },
       npsGoogle: {
-        respostas_nps:       n?.respostas_nps       ?? null,
-        avaliacoes_google:   n?.avaliacoes_google   ?? null,
-        meta_nps_realizado:  n?.meta_nps_realizado  ?? null,
-        meta_nps_meta:       n?.meta_nps_meta       ?? null,
-        meta_nps_pct:        n?.meta_nps_pct        ?? null,
-        meta_nps_acima:      n?.meta_nps_acima      ?? false,
-        meta_google_realizado: n?.meta_google_realizado ?? null,
-        meta_google_meta:    n?.meta_google_meta    ?? null,
-        meta_google_pct:     n?.meta_google_pct     ?? null,
-        meta_google_acima:   n?.meta_google_acima   ?? false,
+        // Suporta dados antigos (meta_nps_realizado era separado de respostas_nps)
+        respostas_nps:     n?.respostas_nps     ?? null,
+        avaliacoes_google: n?.avaliacoes_google ?? null,
+        meta_nps_meta:     n?.meta_nps_meta     ?? null,
+        meta_google_meta:  n?.meta_google_meta  ?? null,
       },
       comercial: {
         conversao_leads:      com?.conversao_leads      ?? "N/A",
@@ -375,22 +370,30 @@ export function InfograficoOG({
                 </div>
               </div>
             </div>
-            {ng.meta_nps_meta !== null && (
-              <MetaLinha
-                label="Meta NPS"
-                valor={`${ng.meta_nps_realizado !== null ? String(ng.meta_nps_realizado) : "N/A"} / ${ng.meta_nps_meta}`}
-                pct={ng.meta_nps_pct}
-                acima={ng.meta_nps_acima}
-              />
-            )}
-            {ng.meta_google_meta !== null && (
-              <MetaLinha
-                label="Meta Google"
-                valor={`${ng.meta_google_realizado !== null ? String(ng.meta_google_realizado) : "N/A"} / ${ng.meta_google_meta}`}
-                pct={ng.meta_google_pct}
-                acima={ng.meta_google_acima}
-              />
-            )}
+            {ng.meta_nps_meta !== null && (() => {
+              const pct = ng.respostas_nps !== null && ng.meta_nps_meta > 0
+                ? Math.round(ng.respostas_nps / ng.meta_nps_meta * 100) : null;
+              return (
+                <MetaLinha
+                  label="Meta NPS"
+                  valor={`${ng.respostas_nps !== null ? String(ng.respostas_nps) : "N/A"} / ${ng.meta_nps_meta}`}
+                  pct={pct}
+                  acima={(pct ?? 0) >= 100}
+                />
+              );
+            })()}
+            {ng.meta_google_meta !== null && (() => {
+              const pct = ng.avaliacoes_google !== null && ng.meta_google_meta > 0
+                ? Math.round(ng.avaliacoes_google / ng.meta_google_meta * 100) : null;
+              return (
+                <MetaLinha
+                  label="Meta Google"
+                  valor={`${ng.avaliacoes_google !== null ? String(ng.avaliacoes_google) : "N/A"} / ${ng.meta_google_meta}`}
+                  pct={pct}
+                  acima={(pct ?? 0) >= 100}
+                />
+              );
+            })()}
           </div>
         </CardBox>
 

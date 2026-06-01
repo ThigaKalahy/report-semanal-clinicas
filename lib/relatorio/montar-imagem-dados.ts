@@ -72,27 +72,11 @@ function buildNpsGoogle(
     m.tipo_nome.toLowerCase().includes("google")
   );
 
-  const nps_pct =
-    metaNps && metaNps.meta_periodo > 0
-      ? Math.round(((nps?.nps_score ?? 0) / metaNps.meta_periodo) * 100)
-      : null;
-
-  const google_pct =
-    metaGoogle && metaGoogle.meta_periodo > 0
-      ? Math.round(((google?.total ?? 0) / metaGoogle.meta_periodo) * 100)
-      : null;
-
   return {
-    respostas_nps: nps?.total ?? null,
+    respostas_nps: nps?.nps_score ?? null,
     avaliacoes_google: google?.total ?? null,
-    meta_nps_realizado: nps?.nps_score ?? null,
-    meta_nps_meta: metaNps?.meta_periodo ?? null,
-    meta_nps_pct: nps_pct,
-    meta_nps_acima: nps_pct !== null && nps_pct >= 100,
-    meta_google_realizado: google?.total ?? null,
-    meta_google_meta: metaGoogle?.meta_periodo ?? null,
-    meta_google_pct: google_pct,
-    meta_google_acima: google_pct !== null && google_pct >= 100,
+    meta_nps_meta: metaNps?.meta_mensal ?? null,
+    meta_google_meta: metaGoogle?.meta_mensal ?? null,
   };
 }
 

@@ -17,16 +17,10 @@ export interface FaturamentoVisao {
 }
 
 export interface NpsGoogleVisao {
-  respostas_nps: number | null;
-  avaliacoes_google: number | null;
-  meta_nps_realizado: number | null;
-  meta_nps_meta: number | null;
-  meta_nps_pct: number | null;
-  meta_nps_acima: boolean;
-  meta_google_realizado: number | null;
-  meta_google_meta: number | null;
-  meta_google_pct: number | null;
-  meta_google_acima: boolean;
+  respostas_nps: number | null;      // NPS score realizado (comparado ao alvo)
+  avaliacoes_google: number | null;  // qtd. de avaliações Google (comparado ao alvo)
+  meta_nps_meta: number | null;      // alvo NPS (valor_meta_mensal da meta tipo NPS)
+  meta_google_meta: number | null;   // alvo Google (valor_meta_mensal da meta tipo Google)
 }
 
 export interface ComercialVisao {
