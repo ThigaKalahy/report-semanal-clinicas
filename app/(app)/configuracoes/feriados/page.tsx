@@ -1,3 +1,5 @@
+export const revalidate = 0;
+
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { FeriadosClient } from "./_components/feriados-client";
 

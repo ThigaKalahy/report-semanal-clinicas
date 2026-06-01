@@ -48,8 +48,7 @@ export function LoginForm() {
       <div className="hidden lg:flex lg:w-1/2 bg-gestfy-gradient flex-col items-center justify-center p-12 gap-8">
         <GestfyLogo variant="full" size={56} showSubtitle onDark />
         <p className="text-white/70 text-sm text-center max-w-xs leading-relaxed">
-          Consolide pesquisas, NPS, avaliações Google e metas em um relatório
-          semanal pronto para WhatsApp.
+          Gestfy Sync — Onde dados viram decisões.
         </p>
       </div>
 
@@ -64,7 +63,7 @@ export function LoginForm() {
           <Card className="shadow-lg border-border">
             <CardHeader className="pb-2 space-y-1">
               <h1 className="text-xl font-semibold text-foreground">
-                Relatórios Semanais
+                Gestfy Sync
               </h1>
               <p className="text-sm text-muted-foreground">
                 Digite a senha para acessar a ferramenta.

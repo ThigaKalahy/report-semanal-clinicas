@@ -27,7 +27,11 @@
       "Bash(curl -s -b /tmp/gestfy-cookies.txt -o /dev/null -w \"%{http_code}\" http://localhost:3000/clinicas)",
       "Bash(curl -s -b /tmp/gestfy-cookies.txt -o /dev/null -w \"%{http_code}\" \"http://localhost:3000/clinicas/00000000-0000-0000-0000-000000000000/fontes\")",
       "Bash(npm test *)",
-      "Bash(mkdir -p \"c:/Users/thiago.silva/Documents/projetos/report-semanal-clinicas/app/api/relatorio-imagem/[id]\")"
+      "Bash(mkdir -p \"c:/Users/thiago.silva/Documents/projetos/report-semanal-clinicas/app/api/relatorio-imagem/[id]\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
+      "Bash(grep -E \"^cmdk$\")",
+      "Bash(grep -E \"^cmdk$|^vaul$\")",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(d.get\\('version',''\\)\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\thiago.silva\\Documents\\projetos\\report-semanal-clinicas\\app\\api\\relatorio-imagem"

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSheetsClient } from "@/lib/google/sheets";
+import { checkRateLimit, rateLimitKey, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
+  if (!checkRateLimit(rateLimitKey(request.headers))) return tooManyRequests();
+
   let sheet_id: string, aba_nome: string;
   try {
     const body = await request.json();

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { InfograficoOG } from "@/lib/relatorio/InfograficoOG";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
+import { checkRateLimit, rateLimitKey, tooManyRequests } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
@@ -55,6 +56,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!checkRateLimit(rateLimitKey(_req.headers))) return tooManyRequests();
+
   let id = "(desconhecido)";
   try {
     id = (await params).id;

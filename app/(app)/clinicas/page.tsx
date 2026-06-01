@@ -1,3 +1,5 @@
+export const revalidate = 0;
+
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { ClinicasClient } from "./_components/clinicas-client";
 import type { Clinica } from "@/lib/supabase/types";

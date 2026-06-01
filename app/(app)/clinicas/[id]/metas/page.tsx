@@ -1,3 +1,5 @@
+export const revalidate = 0;
+
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { MetasClient } from "./_components/metas-client";

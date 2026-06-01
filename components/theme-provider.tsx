@@ -8,6 +8,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="light"
       enableSystem={false}
+      storageKey="gestfy-theme"
       disableTransitionOnChange
     >
       {children}

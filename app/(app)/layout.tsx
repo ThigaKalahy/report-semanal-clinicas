@@ -2,6 +2,7 @@ import { Separator } from "@/components/ui/separator";
 import { GestfyLogo } from "@/components/brand/gestfy-logo";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { SidebarFooterClient } from "@/components/sidebar-footer-client";
+import { CommandPalette } from "@/components/command-palette";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 overflow-auto bg-background">
         {children}
       </main>
+      <CommandPalette />
     </div>
   );
 }

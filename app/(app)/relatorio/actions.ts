@@ -1,5 +1,7 @@
 "use server";
 
+import { headers } from "next/headers";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { coletarPreConsulta } from "@/lib/coletores/pre-consulta";
 import { coletarNPS } from "@/lib/coletores/nps";
@@ -21,6 +23,11 @@ interface GerarParams {
 export async function gerarRelatorioWhatsapp(
   params: GerarParams
 ): Promise<{ texto: string; erros: string[] }> {
+  const h = await headers();
+  if (!checkRateLimit(rateLimitKey(h), 10)) {
+    return { texto: "", erros: ["Limite de requisições atingido. Aguarde 1 minuto."] };
+  }
+
   const { clinicaId, ini, fim, formato, googleManual } = params;
   const erros: string[] = [];
 
@@ -109,6 +116,10 @@ export async function prepararDadosImagem(params: {
   ini: string;
   fim: string;
 }): Promise<{ dados: RelatorioImagemData; erros: string[] }> {
+  const h = await headers();
+  if (!checkRateLimit(rateLimitKey(h), 10)) {
+    return { dados: {} as RelatorioImagemData, erros: ["Limite de requisições atingido. Aguarde 1 minuto."] };
+  }
   const { clinicaId, ini, fim } = params;
   const erros: string[] = [];
   const db = getSupabaseAdmin();
