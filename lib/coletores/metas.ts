@@ -53,7 +53,7 @@ export async function coletarMetas(
   if (ano < currentAno || (ano === currentAno && mes < currentMes)) {
     diasDecorridos = diasTotal;
   } else if (ano === currentAno && mes === currentMes) {
-    diasDecorridos = diasUteisDecorridos(today, feriadosDatas);
+    diasDecorridos = diasUteisDecorridos(dataRef, feriadosDatas);
   } else {
     diasDecorridos = 0;
   }

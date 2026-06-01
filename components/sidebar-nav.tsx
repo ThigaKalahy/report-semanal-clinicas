@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
+  ScrollText,
   Building2,
   FileText,
   Target,
@@ -12,9 +12,9 @@ import {
 import { cn } from "@/lib/utils";
 
 const mainNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clinicas", label: "Clínicas", icon: Building2 },
   { href: "/relatorio", label: "Gerar Relatório", icon: FileText },
+  { href: "/dashboard", label: "Logs", icon: ScrollText },
 ];
 
 const configNavItems = [

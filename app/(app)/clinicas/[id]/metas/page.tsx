@@ -12,14 +12,15 @@ export default async function MetasPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: { mes?: string; ano?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ mes?: string; ano?: string }>;
 }) {
-  const { id } = params;
+  const { id } = await params;
+  const { mes: qMes, ano: qAno } = await searchParams;
   const today = new Date();
 
-  const mes = Number(searchParams.mes) || today.getMonth() + 1;
-  const ano = Number(searchParams.ano) || today.getFullYear();
+  const mes = Number(qMes) || today.getMonth() + 1;
+  const ano = Number(qAno) || today.getFullYear();
 
   const db = getSupabaseAdmin();
 

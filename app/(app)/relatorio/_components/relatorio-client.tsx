@@ -116,7 +116,7 @@ function FormImagem({dados,onChange}:{dados:RelatorioImagemData;onChange:(d:Rela
           ))}
           {([["pct_periodo","% do período"],["pct_mensal","% da meta mensal"]] as [keyof typeof fat,string][]).map(([k,l])=>(
             <div key={k} className="space-y-1"><Label className="text-xs">{l}</Label>
-              <Input type="number" value={((fat as unknown as Record<string, number | null | undefined>)[k]) ?? ""} placeholder="null=N/A"
+              <Input type="number" value={((fat as unknown as Record<string, number | null | undefined>)[k]) ?? ""} placeholder="—"
                 onChange={e=>onChange({...dados,visaoGeral:{...visaoGeral,faturamento:{...fat,[k]:e.target.value===""?null:Number(e.target.value)}}})} className="text-sm"/>
             </div>
           ))}
@@ -127,7 +127,7 @@ function FormImagem({dados,onChange}:{dados:RelatorioImagemData;onChange:(d:Rela
         <div className="grid grid-cols-2 gap-3">
           {(["respostas_nps","avaliacoes_google","meta_nps_realizado","meta_nps_meta","meta_nps_pct","meta_google_realizado","meta_google_meta","meta_google_pct"] as (keyof typeof ng)[]).map(k=>(
             <div key={k} className="space-y-1"><Label className="text-xs">{k.replace(/_/g," ")}</Label>
-              <Input type="number" value={((ng as unknown as Record<string, number | null | undefined>)[k]) ?? ""} placeholder="null=N/A"
+              <Input type="number" value={((ng as unknown as Record<string, number | null | undefined>)[k]) ?? ""} placeholder="—"
                 onChange={e=>onChange({...dados,visaoGeral:{...visaoGeral,npsGoogle:{...ng,[k]:e.target.value===""?null:Number(e.target.value)}}})} className="text-sm"/>
             </div>
           ))}
