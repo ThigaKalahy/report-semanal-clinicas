@@ -103,15 +103,15 @@ export function ClinicaFormDialog({ open, onOpenChange, clinica }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="tag_curta">Tag curta</Label>
+              <Label htmlFor="tag_curta">Código de integração</Label>
               <Input
                 id="tag_curta"
                 {...form.register("tag_curta")}
-                placeholder="AXEM"
+                placeholder="EX-001"
                 maxLength={10}
                 onChange={(e) => form.setValue("tag_curta", e.target.value.toUpperCase())}
               />
-              <p className="text-xs text-muted-foreground">Usada no infográfico</p>
+              <p className="text-xs text-muted-foreground">Código interno para integrações futuras (opcional)</p>
               {errors.tag_curta && <p className="text-xs text-destructive">{errors.tag_curta.message}</p>}
             </div>
             <div className="space-y-1.5">

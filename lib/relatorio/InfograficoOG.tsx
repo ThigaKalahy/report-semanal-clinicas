@@ -271,6 +271,10 @@ export function InfograficoOG({
   const ng  = visaoGeral.npsGoogle;
   const com = visaoGeral.comercial;
 
+  // Truncate long clinic names so the header stays on one line
+  const nome = cabecalho.clinica_nome || "Clínica";
+  const nomeTruncado = nome.length > 30 ? nome.slice(0, 27) + "..." : nome;
+
   return (
     <div
       style={{
@@ -302,7 +306,7 @@ export function InfograficoOG({
             gestfy
           </div>
         )}
-        <div style={col({ alignItems: "flex-end", gap: 4 })}>
+        <div style={col({ alignItems: "flex-end", gap: 4, maxWidth: 540 })}>
           <div
             style={{
               display: "flex",
@@ -313,7 +317,7 @@ export function InfograficoOG({
               textTransform: "uppercase",
             }}
           >
-            REPORT SEMANAL — [{cabecalho.tag.toUpperCase()}]
+            REPORT SEMANAL — [{nomeTruncado}]
           </div>
           <div style={{ display: "flex", fontSize: 12, color: C.lavanda }}>
             {cabecalho.periodo_ini} até {cabecalho.periodo_fim}
