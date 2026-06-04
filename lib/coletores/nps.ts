@@ -1,9 +1,21 @@
 import { readSheetRange } from "@/lib/google/sheets";
 import type { FonteDados, Json } from "@/lib/supabase/types";
 
+// Comentários com menos caracteres que este limite são ocultados do relatório.
+// Troque o valor aqui para ajustar sem mexer na lógica.
+const MIN_CARACTERES_COMENTARIO = 35;
+
 export interface NotaCount {
   nota: number;
   count: number;
+}
+
+export interface Indicacao {
+  texto_indicacao: string;  // conteúdo bruto da célula
+  indicado_por: string;     // nome do respondente (já resolvido com privacidade)
+  nome_indicado: string;    // nome extraído do texto (vazio se usa_bruto)
+  numero: string;           // telefone formatado (vazio se usa_bruto)
+  usa_bruto: boolean;       // true = não foi possível separar, exibir texto_indicacao direto
 }
 
 export interface ResultadoNPS {
@@ -18,6 +30,7 @@ export interface ResultadoNPS {
     enfermagem: number | null;
   };
   comentarios: { nome: string; comentario: string }[];
+  indicacoes: Indicacao[];
 }
 
 function getMapeamento(m: Json): Record<string, string> {
@@ -48,6 +61,42 @@ function mediaValida(values: (number | null)[]): number | null {
   const valid = values.filter((v): v is number => v !== null);
   if (!valid.length) return null;
   return valid.reduce((a, b) => a + b, 0) / valid.length;
+}
+
+/**
+ * Tenta extrair um telefone brasileiro do texto da indicação.
+ *
+ * Formatos reconhecidos (DDD de 2 dígitos + 8 ou 9 dígitos):
+ *   62 981410165  |  (62) 98141-0165  |  62981410165
+ *   62 9814-1016  |  (62)9814-1016    |  11 3456-7890
+ *
+ * Se não encontrar um número com 10 ou 11 dígitos, retorna usa_bruto=true
+ * e todo o texto deve ser exibido sem cortes.
+ */
+function parseTelefoneIndicacao(texto: string): Pick<Indicacao, "nome_indicado" | "numero" | "usa_bruto"> {
+  // Padrão: opcional ( DDD ) + espaços + 4-5 dígitos + separador opcional + 4 dígitos
+  const phoneRe = /\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}/;
+  const match = texto.match(phoneRe);
+
+  if (match) {
+    const phonePart = match[0];
+    const digits = phonePart.replace(/\D/g, "");
+
+    let formatted = "";
+    if (digits.length === 11) {
+      formatted = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    } else if (digits.length === 10) {
+      formatted = `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+
+    if (formatted) {
+      const start = match.index!;
+      const rest = (texto.slice(0, start) + texto.slice(start + phonePart.length)).trim();
+      return { nome_indicado: rest, numero: formatted, usa_bruto: false };
+    }
+  }
+
+  return { nome_indicado: "", numero: "", usa_bruto: true };
 }
 
 /**
@@ -94,14 +143,15 @@ export async function coletarNPS(
 
   const dataIdx = colIndex(fonte.coluna_data);
   const idx = (key: string) => (mapeamento[key] ? colIndex(mapeamento[key]) : -1);
-  const notaGeralIdx = idx("nota_geral");
-  const notaProfIdx = idx("nota_profissional");
-  const notaRecIdx = idx("nota_recepcao");
-  const notaInfraIdx = idx("nota_infraestrutura");
-  const notaEnfIdx = idx("nota_enfermagem");
-  const comentIdx = idx("comentario");
-  const nomeIdx = idx("nome_paciente");
-  const anonimatoIdx = idx("anonimato");
+  const notaGeralIdx      = idx("nota_geral");
+  const notaProfIdx       = idx("nota_profissional");
+  const notaRecIdx        = idx("nota_recepcao");
+  const notaInfraIdx      = idx("nota_infraestrutura");
+  const notaEnfIdx        = idx("nota_enfermagem");
+  const comentIdx         = idx("comentario");
+  const nomeIdx           = idx("nome_paciente");
+  const anonimatoIdx      = idx("anonimato");
+  const indicacaoIdx      = idx("indicacao");
 
   const iniMs = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate()).getTime();
   const fimMs = new Date(dataFim.getFullYear(), dataFim.getMonth(), dataFim.getDate()).getTime();
@@ -119,6 +169,7 @@ export async function coletarNPS(
   const notasInfra: (number | null)[] = [];
   const notasEnf: (number | null)[] = [];
   const comentarios: { nome: string; comentario: string }[] = [];
+  const indicacoes: Indicacao[] = [];
 
   let promotores = 0,
     neutros = 0,
@@ -139,13 +190,30 @@ export async function coletarNPS(
     if (notaInfraIdx >= 0) notasInfra.push(parseNota(String(row[notaInfraIdx] ?? "")));
     if (notaEnfIdx >= 0) notasEnf.push(parseNota(String(row[notaEnfIdx] ?? "")));
 
+    // Comentários: ignorar vazios e muito curtos (< MIN_CARACTERES_COMENTARIO)
     if (comentIdx >= 0) {
       const comentario = String(row[comentIdx] ?? "").trim();
-      if (comentario) {
+      if (comentario.length >= MIN_CARACTERES_COMENTARIO) {
         const nomeOriginal = nomeIdx >= 0 ? String(row[nomeIdx] ?? "").trim() : "";
         const anonimatoVal = anonimatoIdx >= 0 ? String(row[anonimatoIdx] ?? "") : "";
         const nome = resolverNomePaciente(anonimatoIdx >= 0, anonimatoVal, nomeOriginal);
         comentarios.push({ nome, comentario });
+      }
+    }
+
+    // Indicações
+    if (indicacaoIdx >= 0) {
+      const textoInd = String(row[indicacaoIdx] ?? "").trim();
+      if (textoInd) {
+        const nomeOriginal = nomeIdx >= 0 ? String(row[nomeIdx] ?? "").trim() : "";
+        const anonimatoVal = anonimatoIdx >= 0 ? String(row[anonimatoIdx] ?? "") : "";
+        const indicado_por = resolverNomePaciente(anonimatoIdx >= 0, anonimatoVal, nomeOriginal);
+        const parsed = parseTelefoneIndicacao(textoInd);
+        indicacoes.push({
+          texto_indicacao: textoInd,
+          indicado_por,
+          ...parsed,
+        });
       }
     }
   }
@@ -173,5 +241,6 @@ export async function coletarNPS(
       enfermagem: mediaValida(notasEnf),
     },
     comentarios,
+    indicacoes,
   };
 }

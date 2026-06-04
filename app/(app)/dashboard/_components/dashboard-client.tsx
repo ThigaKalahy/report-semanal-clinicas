@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Copy, Check, FileText } from "lucide-react";
+import { Copy, Check, FileText, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,7 +20,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { RelatorioGerado } from "@/lib/supabase/types";
+import { excluirRelatorios } from "../actions";
 
 const FORMATO_LABELS: Record<string, string> = {
   whatsapp_pesquisas: "WhatsApp — Pesquisas",
@@ -58,7 +70,48 @@ function fmtPeriodo(ini: string | null, fim: string | null): string {
 }
 
 export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinica[] }) {
+  const [rows, setRows] = useState<RelatorioComClinica[]>(relatorios);
   const [viewing, setViewing] = useState<RelatorioComClinica | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmPending, setConfirmPending] = useState<{ ids: string[] } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const allSelected = rows.length > 0 && selected.size === rows.length;
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(rows.map((r) => r.id)));
+    }
+  }
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDelete() {
+    if (!confirmPending) return;
+    const ids = confirmPending.ids;
+    setIsDeleting(true);
+    const result = await excluirRelatorios(ids);
+    setIsDeleting(false);
+    setConfirmPending(null);
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      setRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+      setSelected(new Set());
+      toast.success(
+        ids.length === 1 ? "Relatório excluído." : `${ids.length} relatórios excluídos.`
+      );
+    }
+  }
 
   return (
     <>
@@ -70,7 +123,31 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
           </p>
         </div>
 
-        {relatorios.length === 0 ? (
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5">
+            <span className="text-sm text-destructive font-medium">
+              {selected.size} {selected.size === 1 ? "selecionado" : "selecionados"}
+            </span>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setConfirmPending({ ids: Array.from(selected) })}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Excluir selecionados
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
+              onClick={() => setSelected(new Set())}
+            >
+              Cancelar seleção
+            </Button>
+          </div>
+        )}
+
+        {rows.length === 0 ? (
           <div className="rounded-md border p-14 text-center">
             <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">Nenhum relatório gerado ainda.</p>
@@ -80,43 +157,76 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 pl-4">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      className="h-4 w-4 cursor-pointer accent-[#7B099C]"
+                      aria-label="Selecionar todos"
+                    />
+                  </TableHead>
                   <TableHead>Clínica</TableHead>
                   <TableHead>Formato</TableHead>
                   <TableHead>Período</TableHead>
                   <TableHead>Gerado em</TableHead>
-                  <TableHead className="w-16" />
+                  <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {relatorios.map((r) => (
+                {rows.map((r) => (
                   <TableRow
                     key={r.id}
                     className="cursor-pointer"
+                    data-state={selected.has(r.id) ? "selected" : undefined}
                     onClick={() => setViewing(r)}
                   >
-                    <TableCell className="font-medium">{r.clinicas.nome}</TableCell>
+                    <TableCell
+                      className="pl-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(r.id)}
+                        onChange={() => toggleOne(r.id)}
+                        className="h-4 w-4 cursor-pointer accent-[#7B099C]"
+                        aria-label="Selecionar relatório"
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {r.clinicas?.nome ?? "—"}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {FORMATO_LABELS[r.formato] ?? r.formato}
+                        {FORMATO_LABELS[r.formato] ?? r.formato ?? "—"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {fmtPeriodo(r.data_inicio, r.data_fim)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(r.gerado_em), "dd/MM/yyyy HH:mm")}
+                      {r.gerado_em
+                        ? format(new Date(r.gerado_em), "dd/MM/yyyy HH:mm")
+                        : "—"}
                     </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewing(r);
-                        }}
-                      >
-                        Ver
-                      </Button>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewing(r)}
+                        >
+                          Ver
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setConfirmPending({ ids: [r.id] })}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -126,13 +236,14 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
         )}
       </div>
 
+      {/* Dialog de visualização */}
       <Dialog open={!!viewing} onOpenChange={(v) => !v && setViewing(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base leading-snug">
-              {viewing?.clinicas.nome}
+              {viewing?.clinicas?.nome ?? "—"}
               {" — "}
-              {FORMATO_LABELS[viewing?.formato ?? ""] ?? viewing?.formato}
+              {FORMATO_LABELS[viewing?.formato ?? ""] ?? viewing?.formato ?? ""}
               {viewing && (
                 <span className="text-muted-foreground font-normal">
                   {" "}({fmtPeriodo(viewing.data_inicio, viewing.data_fim)})
@@ -155,6 +266,35 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
           )}
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog de confirmação de exclusão */}
+      <AlertDialog
+        open={!!confirmPending}
+        onOpenChange={(v) => { if (!v && !isDeleting) setConfirmPending(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmPending?.ids.length === 1
+                ? "Excluir este relatório?"
+                : `Excluir ${confirmPending?.ids.length ?? 0} relatórios?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

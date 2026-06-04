@@ -3,6 +3,7 @@ import { formatValor } from "@/lib/format";
 import type { ResultadoPreConsulta } from "@/lib/coletores/pre-consulta";
 import type { ResultadoNPS } from "@/lib/coletores/nps";
 import type { ResultadoGoogle, AvaliacaoGoogle } from "@/lib/coletores/google-places";
+import type { Indicacao } from "@/lib/coletores/nps";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 
 export const SEPARATOR = "—- ENVIAR SEPARADO";
@@ -112,6 +113,21 @@ function blocoNPS(nps: ResultadoNPS): string {
     for (const { emoji, nome, media } of areas) {
       lines.push(`${emoji} ${nome}:`);
       lines.push(media === 5 ? `🟢 Todas notas 5` : `🟢 Média: ${fmtMedia(media!)}`);
+    }
+  }
+
+  if (nps.indicacoes && nps.indicacoes.length > 0) {
+    lines.push("");
+    lines.push(`☎️ *Indicações*`);
+    for (const ind of nps.indicacoes) {
+      if (ind.usa_bruto) {
+        lines.push(`${ind.texto_indicacao}, indicado por ${ind.indicado_por}`);
+      } else {
+        const quem = ind.nome_indicado
+          ? `${ind.nome_indicado} ${ind.numero}`
+          : ind.numero;
+        lines.push(`${quem}, indicado por ${ind.indicado_por}`);
+      }
     }
   }
 
