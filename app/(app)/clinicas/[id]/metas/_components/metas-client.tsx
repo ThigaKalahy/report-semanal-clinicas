@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,7 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatValor } from "@/lib/format";
 import { calcularMetaPeriodo, calcularPercentualMeta, descreverPerformance } from "@/lib/metas";
-import { deletarMeta } from "../actions";
+import { deletarMeta, copiarMetasMesAnterior } from "../actions";
 import { MetaFormDialog } from "./meta-form-dialog";
 import { AtualizarRealizadosDialog, type MetaComTipo } from "./atualizar-realizados-dialog";
 import type { Meta, TipoMeta } from "@/lib/supabase/types";
@@ -64,6 +64,9 @@ export function MetasClient({
   const [atualizarOpen, setAtualizarOpen] = useState(false);
   const [deleting, setDeleting] = useState<MetaComTipo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copiarDialogOpen, setCopiarDialogOpen] = useState(false);
+  const [existentesCount, setExistentesCount] = useState(0);
 
   function navigate(delta: number) {
     let newMes = mes + delta;
@@ -71,6 +74,26 @@ export function MetasClient({
     if (newMes > 12) { newMes = 1; newAno++; }
     if (newMes < 1) { newMes = 12; newAno--; }
     router.push(`/clinicas/${clinicaId}/metas?mes=${newMes}&ano=${newAno}`);
+  }
+
+  async function handleCopiar(forcar = false) {
+    setIsCopying(true);
+    const result = await copiarMetasMesAnterior(clinicaId, mes, ano, forcar);
+    setIsCopying(false);
+
+    if ("erro" in result) {
+      toast.error(result.erro);
+    } else if ("aviso" in result) {
+      setExistentesCount(result.aviso.existentes);
+      setCopiarDialogOpen(true);
+    } else {
+      setCopiarDialogOpen(false);
+      if (result.copiadas === 0) {
+        toast.info("Todas as metas do mês anterior já existem neste mês.");
+      } else {
+        toast.success(`${result.copiadas} meta(s) copiada(s) com sucesso.`);
+      }
+    }
   }
 
   async function confirmDelete() {
@@ -95,6 +118,10 @@ export function MetasClient({
           <h1 className="text-2xl font-bold text-foreground font-heading">Metas</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => handleCopiar(false)} disabled={isCopying}>
+            {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+            Copiar mês anterior
+          </Button>
           <Button variant="outline" className="gap-2" onClick={() => setAtualizarOpen(true)}>
             <RefreshCw className="h-4 w-4" />
             Atualizar realizados
@@ -272,6 +299,24 @@ export function MetasClient({
         clinicaId={clinicaId}
         metas={metas}
       />
+
+      <AlertDialog open={copiarDialogOpen} onOpenChange={(v) => !v && setCopiarDialogOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Este mês já tem {existentesCount} meta(s)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja continuar? Metas existentes do mesmo tipo serão mantidas — apenas os tipos
+              que ainda não existem neste mês serão copiados do mês anterior.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleCopiar(true)} disabled={isCopying}>
+              {isCopying ? "Copiando…" : "Continuar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
         <AlertDialogContent>

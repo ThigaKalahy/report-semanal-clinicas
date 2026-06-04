@@ -45,7 +45,7 @@ export interface Database {
         Row: {
           id: string;
           clinica_id: string;
-          tipo: "pre_consulta" | "nps";
+          tipo: "pre_consulta" | "nps" | "leads";
           sheet_id: string;
           aba_nome: string;
           coluna_data: string;
@@ -55,7 +55,7 @@ export interface Database {
         Insert: {
           id?: string;
           clinica_id: string;
-          tipo: "pre_consulta" | "nps";
+          tipo: "pre_consulta" | "nps" | "leads";
           sheet_id: string;
           aba_nome: string;
           coluna_data: string;
@@ -65,7 +65,7 @@ export interface Database {
         Update: {
           id?: string;
           clinica_id?: string;
-          tipo?: "pre_consulta" | "nps";
+          tipo?: "pre_consulta" | "nps" | "leads";
           sheet_id?: string;
           aba_nome?: string;
           coluna_data?: string;

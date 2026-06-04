@@ -92,8 +92,9 @@ export function ClinicasClient({ clinicas }: Props) {
               </TableRow>
             )}
             {clinicas.map((c) => {
-              const temPre = c.fontes_dados.some((f) => f.tipo === "pre_consulta");
-              const temNps = c.fontes_dados.some((f) => f.tipo === "nps");
+              const temPre   = c.fontes_dados.some((f) => f.tipo === "pre_consulta");
+              const temNps   = c.fontes_dados.some((f) => f.tipo === "nps");
+              const temLeads = c.fontes_dados.some((f) => f.tipo === "leads");
               return (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.nome}</TableCell>
@@ -134,6 +135,14 @@ export function ClinicasClient({ clinicas }: Props) {
                           : "text-muted-foreground"}
                       >
                         NPS
+                      </Badge>
+                      <Badge
+                        variant={temLeads ? "default" : "outline"}
+                        className={temLeads
+                          ? "bg-gestfy-roxo-04 text-white hover:bg-gestfy-roxo-04/90 border-transparent"
+                          : "text-muted-foreground"}
+                      >
+                        Leads
                       </Badge>
                     </div>
                   </TableCell>

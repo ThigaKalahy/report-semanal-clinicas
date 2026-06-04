@@ -21,7 +21,7 @@ import { deleteFonte } from "../actions";
 import type { FonteDados, Json } from "@/lib/supabase/types";
 
 interface Props {
-  tipo: "pre_consulta" | "nps";
+  tipo: "pre_consulta" | "nps" | "leads";
   title: string;
   description: string;
   clinicaId: string;
@@ -48,10 +48,16 @@ function getMapeamentoStr(mapeamento: Json): Record<string, string> {
   return {};
 }
 
+const TIPO_LABELS: Record<"pre_consulta" | "nps" | "leads", string> = {
+  pre_consulta: "Pré-Consulta",
+  nps:          "NPS",
+  leads:        "Leads",
+};
+
 export function FonteSection({ tipo, title, description, clinicaId, fonte }: Props) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing]     = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleting, setIsDeleting]   = useState(false);
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -65,7 +71,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
     }
   }
 
-  const label = tipo === "pre_consulta" ? "Pré-Consulta" : "NPS";
+  const label = TIPO_LABELS[tipo];
 
   return (
     <>
@@ -81,37 +87,18 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
               )}
             </div>
             <div className="flex gap-2">
-              {fonte && !isEditing && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-destructive hover:text-destructive"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remover
-                  </Button>
-                </>
-              )}
+              {fonte && !isEditing && (<>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" />Editar
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive"
+                  onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="h-3.5 w-3.5" />Remover
+                </Button>
+              </>)}
               {!fonte && !isEditing && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Settings className="h-3.5 w-3.5" />
-                  Configurar
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsEditing(true)}>
+                  <Settings className="h-3.5 w-3.5" />Configurar
                 </Button>
               )}
             </div>
@@ -134,9 +121,9 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Planilha
                 </div>
-                <ColBadge label="Sheet ID" value={fonte.sheet_id} />
-                <ColBadge label="Aba" value={fonte.aba_nome} />
-                <ColBadge label="Coluna data" value={fonte.coluna_data} />
+                <ColBadge label="Sheet ID"     value={fonte.sheet_id} />
+                <ColBadge label="Aba"          value={fonte.aba_nome} />
+                <ColBadge label="Coluna data"  value={fonte.coluna_data} />
               </div>
               {(() => {
                 const m = getMapeamentoStr(fonte.mapeamento);
@@ -153,9 +140,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                   </div>
                 );
               })()}
-              <Badge variant="secondary" className="text-xs">
-                {label} configurado
-              </Badge>
+              <Badge variant="secondary" className="text-xs">{label} configurado</Badge>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -171,8 +156,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
           <AlertDialogHeader>
             <AlertDialogTitle>Remover fonte {label}?</AlertDialogTitle>
             <AlertDialogDescription>
-              A configuração da planilha será removida. Os relatórios já gerados
-              não serão afetados.
+              A configuração da planilha será removida. Os relatórios já gerados não serão afetados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -180,8 +164,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
+              className="bg-destructive text-white hover:bg-destructive/90">
               {isDeleting ? "Removendo…" : "Remover"}
             </AlertDialogAction>
           </AlertDialogFooter>

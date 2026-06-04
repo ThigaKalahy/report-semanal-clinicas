@@ -1,9 +1,9 @@
 import { format } from "date-fns";
 import { formatValor } from "@/lib/format";
 import type { ResultadoPreConsulta } from "@/lib/coletores/pre-consulta";
-import type { ResultadoNPS } from "@/lib/coletores/nps";
+import type { ResultadoNPS, Indicacao } from "@/lib/coletores/nps";
 import type { ResultadoGoogle, AvaliacaoGoogle } from "@/lib/coletores/google-places";
-import type { Indicacao } from "@/lib/coletores/nps";
+import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 
 export const SEPARATOR = "—- ENVIAR SEPARADO";
@@ -43,17 +43,11 @@ function blocoPreConsulta(
 
   if (pre.motivos.length > 0) {
     lines.push("");
-    const motivoStr = pre.motivos
-      .slice(0, 3)
-      .map((m) => `${m.nome} (${m.pct}%)`)
-      .join(", ");
+    const motivoStr = pre.motivos.slice(0, 3).map((m) => `${m.nome} (${m.pct}%)`).join(", ");
     lines.push(`_➤ Motivo principal>_ ${motivoStr}`);
   }
   if (pre.origens.length > 0) {
-    const origemStr = pre.origens
-      .slice(0, 3)
-      .map((o) => `${o.nome} (${o.pct}%)`)
-      .join(", ");
+    const origemStr = pre.origens.slice(0, 3).map((o) => `${o.nome} (${o.pct}%)`).join(", ");
     lines.push(`_➤ De onde veio>_ ${origemStr}`);
   }
 
@@ -90,7 +84,7 @@ function blocoNPS(nps: ResultadoNPS): string {
   const { promotores, neutros, detratores } = nps.classificacao;
   const partes: string[] = [];
   if (promotores > 0) partes.push(`🟢 ${promotores} Promotores`);
-  if (neutros > 0) partes.push(`🟡 ${neutros} Neutros`);
+  if (neutros > 0)    partes.push(`🟡 ${neutros} Neutros`);
   if (detratores > 0) partes.push(`🔴 ${detratores} Detratores`);
   if (partes.length > 0) {
     lines.push("");
@@ -101,9 +95,9 @@ function blocoNPS(nps: ResultadoNPS): string {
 
   const areas = [
     { emoji: "🧑‍⚕️", nome: "Profissional de saúde", media: nps.medias_por_area.profissional },
-    { emoji: "🧑‍💼", nome: "Recepção", media: nps.medias_por_area.recepcao },
-    { emoji: "🏥", nome: "Infraestrutura", media: nps.medias_por_area.infraestrutura },
-    { emoji: "💉", nome: "Enfermagem", media: nps.medias_por_area.enfermagem },
+    { emoji: "🧑‍💼", nome: "Recepção",               media: nps.medias_por_area.recepcao },
+    { emoji: "🏥",   nome: "Infraestrutura",         media: nps.medias_por_area.infraestrutura },
+    { emoji: "💉",   nome: "Enfermagem",              media: nps.medias_por_area.enfermagem },
   ].filter((a) => a.media !== null);
 
   if (areas.length > 0) {
@@ -119,13 +113,11 @@ function blocoNPS(nps: ResultadoNPS): string {
   if (nps.indicacoes && nps.indicacoes.length > 0) {
     lines.push("");
     lines.push(`☎️ *Indicações*`);
-    for (const ind of nps.indicacoes) {
+    for (const ind of nps.indicacoes as Indicacao[]) {
       if (ind.usa_bruto) {
         lines.push(`${ind.texto_indicacao}, indicado por ${ind.indicado_por}`);
       } else {
-        const quem = ind.nome_indicado
-          ? `${ind.nome_indicado} ${ind.numero}`
-          : ind.numero;
+        const quem = ind.nome_indicado ? `${ind.nome_indicado} ${ind.numero}` : ind.numero;
         lines.push(`${quem}, indicado por ${ind.indicado_por}`);
       }
     }
@@ -140,6 +132,25 @@ function blocoNPS(nps: ResultadoNPS): string {
   }
 
   return lines.join("\n").trimEnd();
+}
+
+function blocoLeads(leads: ResultadoLeads, metaLeads: ResultadoMeta | null): string {
+  const lines: string[] = [];
+  lines.push(`*📈 Leads*`);
+  lines.push(`➤ Total de leads: ${leads.total}`);
+  lines.push(`➤ Convertidos: ${leads.convertidos}`);
+  const taxa = leads.taxa_conversao !== null
+    ? `${leads.taxa_conversao.toFixed(1)}%`
+    : "—";
+  lines.push(`➤ Taxa de conversão: ${taxa}`);
+
+  if (metaLeads) {
+    lines.push(
+      `➤ Meta de leads: ${formatValor(leads.total, metaLeads.tipo_formato)}/${formatValor(metaLeads.meta_periodo, metaLeads.tipo_formato)} \`${metaLeads.performance.texto_curto}\``
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function renderAvaliacoes(avaliacoes: AvaliacaoGoogle[]): string[] {
@@ -157,7 +168,6 @@ function blocoGoogle(
   const lines: string[] = [];
   lines.push(`*⭐ Avaliação Google:*`);
 
-  // Prioridade: avaliações estruturadas > texto livre > API
   if (googleManualAvaliacoes && googleManualAvaliacoes.length > 0) {
     lines.push(`➤ ${googleManualAvaliacoes.length} avaliação(ões) inseridas manualmente`);
     lines.push(...renderAvaliacoes(googleManualAvaliacoes));
@@ -190,13 +200,16 @@ export function montarPesquisas(
   googleManual: string | null,
   ini: Date,
   fim: Date,
-  googleManualAvaliacoes?: AvaliacaoGoogle[]
+  googleManualAvaliacoes?: AvaliacaoGoogle[],
+  leads?: ResultadoLeads | null,
+  metaLeads?: ResultadoMeta | null,
 ): string {
   const blocos: string[] = [];
 
   blocos.push(blocoPreConsulta(clinicaNome, pre, ini, fim));
   if (nps) blocos.push(blocoNPS(nps));
   blocos.push(blocoGoogle(google, googleManual, googleManualAvaliacoes));
+  if (leads) blocos.push(blocoLeads(leads, metaLeads ?? null));
 
   return blocos.join(`\n\n${SEPARATOR}\n\n`);
 }
