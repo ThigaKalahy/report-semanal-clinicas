@@ -55,46 +55,12 @@ export async function coletarLeads(
   const iniMs = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate()).getTime();
   const fimMs = new Date(dataFim.getFullYear(),    dataFim.getMonth(),    dataFim.getDate()).getTime();
 
-  // ── Diagnostic logs (remove after validation) ─────────────────────────────
-  console.log("[leads] range lido:", range);
-  console.log("[leads] total linhas retornadas pela API:", rows.length);
-  console.log("[leads] linha_inicial:", linhaInicial, `→ rows.slice(${linhaInicial - 1})`);
-  console.log("[leads] linhas de dados após slice:", dataRows.length);
-  console.log("[leads] coluna_data:", fonte.coluna_data, "→ índice", dataIdx);
-  console.log("[leads] coluna convertido:", mapeamento.convertido ?? "(não configurada)", "→ índice", convertidoIdx);
-  console.log("[leads] valor_conversao normalizado:", JSON.stringify(valorConversao));
-  console.log(
-    "[leads] período:",
-    dataInicio.toLocaleDateString("pt-BR"), "→", dataFim.toLocaleDateString("pt-BR"),
-    `(${iniMs} → ${fimMs})`,
-  );
-
-  console.log("[leads] primeiras 3 linhas de dados (cru):");
-  for (let i = 0; i < Math.min(3, dataRows.length); i++) {
-    const row      = dataRows[i];
-    const rawDate  = String(row[dataIdx] ?? "(vazio)");
-    const parsed   = parseSheetDate(rawDate);
-    const passou   = parsed ? (parsed.getTime() >= iniMs && parsed.getTime() <= fimMs) : false;
-    const rawConv  = convertidoIdx >= 0 ? String(row[convertidoIdx] ?? "(vazio)") : "(coluna não configurada)";
-    const normConv = convertidoIdx >= 0 ? normStr(rawConv) : "-";
-    const contaConv = convertidoIdx >= 0 ? normConv.includes(valorConversao) : false;
-
-    console.log(
-      `  [leads] linha ${linhaInicial + i}:`,
-      `data="${rawDate}" parsed=${parsed?.toLocaleDateString("pt-BR") ?? "null"} filtro=${passou}`,
-      `| conv="${rawConv}" norm="${normConv}" conta=${contaConv}`,
-    );
-  }
-  // ─────────────────────────────────────────────────────────────────────────
-
   const filtered = dataRows.filter((row) => {
     const d = parseSheetDate(String(row[dataIdx] ?? ""));
     if (!d) return false;
     const t = d.getTime();
     return t >= iniMs && t <= fimMs;
   });
-
-  console.log("[leads] linhas que passaram no filtro de data:", filtered.length);
 
   const total = filtered.length;
   let convertidos = 0;
@@ -105,8 +71,6 @@ export async function coletarLeads(
       if (cell.includes(valorConversao)) convertidos++;
     }
   }
-
-  console.log("[leads] resultado final → total:", total, "| convertidos:", convertidos);
 
   return {
     total,
