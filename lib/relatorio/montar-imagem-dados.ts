@@ -43,21 +43,23 @@ function buildFaturamento(metas: ResultadoMeta[]): FaturamentoVisao {
     };
   }
 
-  const pct_periodo = fat.meta_periodo > 0
-    ? Math.round((fat.realizado / fat.meta_periodo) * 100)
+  // Diferença vs meta: (realizado - meta) / meta * 100; badge mostra valor absoluto,
+  // sinal vem de acima_periodo/acima_mensal.
+  const diffPeriodo = fat.meta_periodo > 0
+    ? Math.round(((fat.realizado - fat.meta_periodo) / fat.meta_periodo) * 100)
     : null;
-  const pct_mensal = fat.meta_mensal > 0
-    ? Math.round((fat.realizado / fat.meta_mensal) * 100)
+  const diffMensal = fat.meta_mensal > 0
+    ? Math.round(((fat.realizado - fat.meta_mensal) / fat.meta_mensal) * 100)
     : null;
 
   return {
     realizado_semana: fmtMoeda(fat.realizado_semana),
     acumulado: fmtMoeda(fat.realizado),
     meta_periodo: fmtMoeda(fat.meta_periodo),
-    pct_periodo,
+    pct_periodo: diffPeriodo !== null ? Math.abs(diffPeriodo) : null,
     acima_periodo: fat.realizado >= fat.meta_periodo,
     meta_mensal: fmtMoeda(fat.meta_mensal),
-    pct_mensal,
+    pct_mensal: diffMensal !== null ? Math.abs(diffMensal) : null,
     acima_mensal: fat.realizado >= fat.meta_mensal,
   };
 }

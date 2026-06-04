@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { coletarPreConsulta } from "@/lib/coletores/pre-consulta";
 import { coletarNPS } from "@/lib/coletores/nps";
 import { coletarAvaliacoesGoogle } from "@/lib/coletores/google-places";
+import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
 import { coletarMetas } from "@/lib/coletores/metas";
 import { montarPesquisas, montarMetas } from "@/lib/relatorio/montar-whatsapp";
 import { montarDadosImagem } from "@/lib/relatorio/montar-imagem-dados";
@@ -18,6 +19,7 @@ interface GerarParams {
   fim: string;
   formato: "whatsapp_pesquisas" | "whatsapp_metas" | "imagem";
   googleManual?: string;
+  googleManualAvaliacoes?: AvaliacaoGoogle[];
 }
 
 export async function gerarRelatorioWhatsapp(
@@ -28,7 +30,7 @@ export async function gerarRelatorioWhatsapp(
     return { texto: "", erros: ["Limite de requisições atingido. Aguarde 1 minuto."] };
   }
 
-  const { clinicaId, ini, fim, formato, googleManual } = params;
+  const { clinicaId, ini, fim, formato, googleManual, googleManualAvaliacoes } = params;
   const erros: string[] = [];
 
   const db = getSupabaseAdmin();
@@ -77,8 +79,18 @@ export async function gerarRelatorioWhatsapp(
       erros.push(`Pré-Consulta: ${(preResult.reason as Error).message}`);
     if (npsResult.status === "rejected")
       erros.push(`NPS: ${(npsResult.reason as Error).message}`);
-    if (googleResult.status === "rejected")
-      erros.push(`Google: ${(googleResult.reason as Error).message}`);
+    if (googleResult.status === "rejected") {
+      erros.push(
+        `Google: A consulta automática está indisponível no momento (${(googleResult.reason as Error).message}). ` +
+        `Confira as avaliações da semana no Google e insira manualmente no campo acima.`
+      );
+    } else if (google && google.total === 0 && !googleManualAvaliacoes?.length) {
+      erros.push(
+        `Google: A busca automática não encontrou avaliações neste período — a API do Google ` +
+        `limita a ~5 avaliações curadas e pode não incluir as mais recentes. ` +
+        `Confira no Google e insira manualmente se houver novas avaliações.`
+      );
+    }
 
     texto = montarPesquisas(
       clinica.nome,
@@ -87,7 +99,8 @@ export async function gerarRelatorioWhatsapp(
       google,
       googleManual ?? null,
       dataInicio,
-      dataFim
+      dataFim,
+      googleManualAvaliacoes
     );
   } else if (formato === "whatsapp_metas") {
     const metasResult = await coletarMetas(clinicaId, dataFim).catch((err: Error) => {

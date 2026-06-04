@@ -218,7 +218,7 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
   const com = raw.visaoGeral?.comercial;
   return {
     cabecalho: {
-      clinica_nome: raw.cabecalho?.clinica_nome ?? "Clinica",
+      clinica_nome: raw.cabecalho?.clinica_nome ?? "Clínica",
       tag: raw.cabecalho?.tag ?? "TAG",
       periodo_ini: raw.cabecalho?.periodo_ini ?? "--",
       periodo_fim: raw.cabecalho?.periodo_fim ?? "--",
@@ -259,9 +259,11 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
 export function InfograficoOG({
   dados: rawDados,
   logoSrc,
+  height,
 }: {
   dados: RelatorioImagemData;
   logoSrc?: string | null;
+  height: number;
 }) {
   const dados = withDefaults(rawDados);
   const { cabecalho, rodape, visaoGeral, destaques, alertas, acoes } = dados;
@@ -275,7 +277,7 @@ export function InfograficoOG({
         display: "flex",
         flexDirection: "column",
         width: 800,
-        height: 1600,
+        height: height,
         background: `linear-gradient(180deg, ${C.bg} 80%, ${C.bgFim} 100%)`,
         fontFamily: "Inter",
         paddingTop: 36,
@@ -314,7 +316,7 @@ export function InfograficoOG({
             REPORT SEMANAL — [{cabecalho.tag.toUpperCase()}]
           </div>
           <div style={{ display: "flex", fontSize: 12, color: C.lavanda }}>
-            {cabecalho.periodo_ini} ate {cabecalho.periodo_fim}
+            {cabecalho.periodo_ini} até {cabecalho.periodo_fim}
           </div>
         </div>
       </div>
@@ -322,24 +324,16 @@ export function InfograficoOG({
       <Divider />
 
       {/* ── Visão Geral ── */}
-      <SecaoTitulo label="VISAO GERAL" />
+      <SecaoTitulo label="VISÃO GERAL" />
 
       <div style={col({ gap: 16, marginBottom: 8 })}>
         {/* Faturamento */}
         <CardBox>
           <CardLabel label="FATURAMENTO x META" />
           <div style={col({ gap: 10 })}>
-            <div style={col({ gap: 2 })}>
-              <div style={{ display: "flex", fontSize: 11, color: C.lavanda, textTransform: "uppercase", letterSpacing: 1 }}>
-                Realizado semanal
-              </div>
-              <div style={{ display: "flex", fontSize: 22, fontWeight: 800, color: C.branco }}>
-                {fat.realizado_semana}
-              </div>
-            </div>
             <MetaLinha
-              label="Acumulado x Meta do periodo"
-              valor={`${fat.acumulado} x ${fat.meta_periodo}`}
+              label="Acumulado x Meta do período"
+              valor={`${fat.acumulado} × ${fat.meta_periodo}`}
               pct={fat.pct_periodo}
               acima={fat.acima_periodo}
             />
@@ -364,7 +358,7 @@ export function InfograficoOG({
                 </div>
               </div>
               <div style={col({ gap: 2 })}>
-                <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Avaliacoes Google</div>
+                <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Avaliações Google</div>
                 <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
                   {ng.avaliacoes_google !== null ? String(ng.avaliacoes_google) : "N/A"}
                 </div>
@@ -399,13 +393,13 @@ export function InfograficoOG({
 
         {/* Comercial */}
         <CardBox>
-          <CardLabel label="COMERCIAL E CONVERSAO" />
+          <CardLabel label="COMERCIAL E CONVERSÃO" />
           <div style={col({ gap: 8 })}>
             {[
-              { label: "Conversao de leads",      val: com.conversao_leads      },
-              { label: "Conversao de orcamentos", val: com.conversao_orcamentos },
+              { label: "Conversão de leads",      val: com.conversao_leads      },
+              { label: "Conversão de orçamentos", val: com.conversao_orcamentos },
               { label: "Total de leads",           val: com.total_leads          },
-              { label: "Total de orcamentos",      val: com.total_orcamentos     },
+              { label: "Total de orçamentos",      val: com.total_orcamentos     },
             ].map(({ label, val }) => (
               <div key={label} style={row({ justifyContent: "space-between", alignItems: "center" })}>
                 <div style={{ display: "flex", fontSize: 13, color: C.lavanda }}>{label}</div>
@@ -473,7 +467,7 @@ export function InfograficoOG({
       {acoes.length > 0 && (
         <div style={col()}>
           <Divider />
-          <SecaoTitulo label="ACOES SUGERIDAS" />
+          <SecaoTitulo label="AÇÕES SUGERIDAS" />
           <div style={col({ gap: 10, marginBottom: 8 })}>
             {acoes.map((a, i) => (
               <div key={i} style={row({ gap: 14, alignItems: "flex-start" })}>
@@ -497,8 +491,7 @@ export function InfograficoOG({
         </div>
       )}
 
-      {/* ── Spacer + Rodapé ── */}
-      <div style={{ display: "flex", flex: 1 }} />
+      {/* ── Rodapé ── */}
       <Divider />
       <div style={row({ justifyContent: "space-between", alignItems: "center" })}>
         <div style={{ display: "flex", fontSize: 16, fontWeight: 800, color: C.branco, opacity: 0.3 }}>

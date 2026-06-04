@@ -26,6 +26,7 @@ import type {
   RelatorioImagemData, DestaqueItem, TipoDestaque,
   FaturamentoVisao, NpsGoogleVisao,
 } from "@/lib/relatorio/imagem-tipos";
+import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type Preset  = "semana_passada" | "ultimos7" | "custom";
@@ -116,6 +117,133 @@ function ReadOnlyPct({ value }: { value: number | null }) {
   return (
     <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
       {value !== null ? `${value}%` : "—"}
+    </div>
+  );
+}
+
+// ─── Parser de avaliações Google no formato de texto ─────────────────────────
+// Formato: estrelas; nome; "texto"; data — múltiplas separadas por /
+// Exemplo: 5; João Lima; "Ótima clínica, recomendo!"; 02/06
+function parseGoogleTexto(texto: string): AvaliacaoGoogle[] {
+  if (!texto.trim()) return [];
+
+  return texto
+    .split("/")
+    .map(p => p.trim())
+    .filter(Boolean)
+    .flatMap((parte): AvaliacaoGoogle[] => {
+      const campos = parte.split(";").map(c => c.trim());
+      if (campos.length < 3) return [];
+
+      const [estStr, autorStr, textoStr, dataStr = ""] = campos;
+      const nota = Number(estStr);
+      if (isNaN(nota) || nota < 1 || nota > 5) return [];
+
+      // Remove aspas simples, duplas ou tipográficas ao redor do texto
+      const textoLimpo = textoStr
+        .replace(/^["""'']|["""'']$/g, "")
+        .trim();
+      if (!textoLimpo) return [];
+
+      return [{
+        nota: Math.round(nota),
+        autor: autorStr || "Anônimo",
+        texto: textoLimpo,
+        data: dataStr.trim(),
+      }];
+    });
+}
+
+// ─── Google Fallback Panel ────────────────────────────────────────────────────
+function GoogleFallbackPanel({
+  clinicaNome, placeId, textoManual, onChangeTexto,
+}: {
+  clinicaNome: string;
+  placeId: string | null | undefined;
+  textoManual: string;
+  onChangeTexto: (v: string) => void;
+}) {
+  const [showGoogleManual, setShowGoogleManual] = useState(false);
+
+  const googleUrl = placeId
+    ? `https://www.google.com/maps/place/?q=place_id:${placeId}`
+    : `https://www.google.com/search?q=${encodeURIComponent(clinicaNome + " avaliações")}`;
+
+  const avaliacoesParsed = parseGoogleTexto(textoManual);
+  const count = avaliacoesParsed.length;
+  const temTexto = textoManual.trim().length > 0;
+
+  return (
+    <div className="rounded-md border bg-muted/30">
+      {/* Cabeçalho sempre visível */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setShowGoogleManual(v => !v)}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors flex-1 text-left min-w-0"
+        >
+          {showGoogleManual
+            ? <ChevronUp className="h-3.5 w-3.5 shrink-0"/>
+            : <ChevronDown className="h-3.5 w-3.5 shrink-0"/>}
+          <span className="font-medium">Inserir avaliações manualmente</span>
+          {count > 0 && (
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+              — {count} avaliação(ões) prontas
+            </span>
+          )}
+        </button>
+        <Button variant="outline" size="sm" asChild className="shrink-0 gap-1.5">
+          <a href={googleUrl} target="_blank" rel="noreferrer">
+            <ExternalLink className="h-3.5 w-3.5"/>Abrir no Google
+          </a>
+        </Button>
+      </div>
+
+      {/* Corpo recolhível */}
+      {showGoogleManual && (
+        <div className="border-t px-4 pb-4 pt-3 space-y-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            A API do Google retorna no máximo ~5 avaliações curadas — nem sempre as da semana atual.
+            Se houver dados manuais, eles <strong>substituem</strong> a busca automática no relatório.
+          </p>
+
+          <div className="rounded-md bg-muted/60 px-3 py-2 space-y-1 text-xs">
+            <p className="font-medium text-foreground">Formato:</p>
+            <p className="text-muted-foreground font-mono">
+              estrelas; nome; "texto"; data{" "}
+              <span className="not-italic">— separe múltiplas com</span>{" "}
+              <span className="font-semibold text-foreground">/</span>
+            </p>
+            <p className="font-medium text-foreground pt-1">Exemplo:</p>
+            <p className="font-mono text-muted-foreground break-all">
+              5; João Lima; "Ótima clínica, recomendo!"; 02/06
+            </p>
+          </div>
+
+          <Textarea
+            value={textoManual}
+            onChange={e => onChangeTexto(e.target.value)}
+            placeholder={
+              '5; João Lima; "Ótima clínica, recomendo!"; 02/06 / 4; Maria S.; "Bom atendimento"; 03/06'
+            }
+            className="text-sm resize-none h-24 font-mono"
+          />
+
+          {/* Preview do parser */}
+          {temTexto && (
+            <p className={`text-xs font-medium ${count > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+              {count > 0
+                ? `✓ ${count} avaliação(ões) reconhecida(s) — serão usadas no relatório em vez da API`
+                : "⚠ Nenhuma avaliação reconhecida — verifique o formato acima"}
+            </p>
+          )}
+          {!temTexto && (
+            <p className="text-xs text-muted-foreground italic">
+              Sem dados manuais — o relatório usará o resultado da API do Google (quando disponível).
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -318,9 +446,8 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
   // ── Formato ──
   const [formato,setFormato]=useState<Formato>("whatsapp_pesquisas");
 
-  // ── Google fallback ──
-  const [googleManual,setGoogleManual]=useState("");
-  const [showGoogleManual,setShowGoogleManual]=useState(false);
+  // ── Google fallback manual (texto livre, parseado antes de enviar) ──
+  const [googleTextoManual,setGoogleTextoManual]=useState("");
 
   // ── Estado de resultados ──
   const [resultados,setResultados]=useState<ResultadoClinica[]>([]);
@@ -337,7 +464,6 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
     setClinicasSel(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
   }
 
-  // IDs efetivos para geração
   function getIdsParaGerar():string[] {
     if(!comparar) return clinicaId?[clinicaId]:[];
     return clinicas.filter(c=>clinicasSel.has(c.id)).map(c=>c.id);
@@ -352,7 +478,6 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
 
     try {
       if(formato==="imagem") {
-        // Para imagem: coletar dados em paralelo
         const tasks=ids.map(id=>{
           const clinica=clinicas.find(c=>c.id===id)!;
           return prepararDadosImagem({clinicaId:id,ini:datas.ini,fim:datas.fim})
@@ -362,29 +487,29 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
         setResultados(res);
         if(res.length) setActiveTab(res[0].clinicaId);
       } else {
-        // WhatsApp: gerar em paralelo
+        // Parsear avaliações manuais uma vez antes de disparar os requests
+        const googleManualAvaliacoes = parseGoogleTexto(googleTextoManual);
+
         const tasks=ids.map(id=>{
           const clinica=clinicas.find(c=>c.id===id)!;
-          return gerarRelatorioWhatsapp({clinicaId:id,ini:datas.ini,fim:datas.fim,formato,googleManual:googleManual||undefined})
-            .then(({texto,erros}):ResultadoClinica=>({clinicaId:id,clinicaNome:clinica.nome,texto,erros}));
+          return gerarRelatorioWhatsapp({
+            clinicaId:id, ini:datas.ini, fim:datas.fim, formato,
+            googleManualAvaliacoes: googleManualAvaliacoes.length>0 ? googleManualAvaliacoes : undefined,
+          }).then(({texto,erros}):ResultadoClinica=>({clinicaId:id,clinicaNome:clinica.nome,texto,erros}));
         });
         const res=await Promise.all(tasks);
         setResultados(res);
         if(res.length) setActiveTab(res[0].clinicaId);
-        // auto-abrir Google fallback se a primeira clínica falhou
-        if(res.some(r=>r.erros.some(e=>e.startsWith("Google:")))) setShowGoogleManual(true);
       }
     } finally {
       setIsGenerating(false);
     }
   }
 
-  // Copiar tudo multi-clínica para WhatsApp
   function textoGlobalWhatsapp():string {
     return resultados.map(r=>`===== ${r.clinicaNome} =====\n\n${r.texto}`).join("\n\n");
   }
 
-  // Baixar todas as imagens (abre abas)
   function abrirTodasImagens() {
     resultados.filter(r=>r.imagemUrl).forEach(r=>window.open(r.imagemUrl,"_blank"));
   }
@@ -392,6 +517,7 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
   const idsParaGerar=getIdsParaGerar();
   const podGerar=idsParaGerar.length>0&&!isGenerating;
   const modoComparativo=comparar&&resultados.length>1;
+  const clinicaAtual=clinicas.find(c=>c.id===clinicaId)??clinicas[0];
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -466,23 +592,14 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
             </div>
           </div>
 
-          {/* Google fallback */}
+          {/* Google fallback — só para pesquisas */}
           {formato==="whatsapp_pesquisas"&&(
-            <div className="space-y-2">
-              <button type="button" onClick={()=>setShowGoogleManual(v=>!v)}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                {showGoogleManual?<ChevronUp className="h-3 w-3"/>:<ChevronDown className="h-3 w-3"/>}
-                Avaliações Google manuais (fallback)
-              </button>
-              {showGoogleManual&&(
-                <div className="space-y-1.5">
-                  <Textarea value={googleManual} onChange={e=>setGoogleManual(e.target.value)}
-                    placeholder="Cole aqui as avaliações do Google manualmente…"
-                    className="h-24 text-sm resize-none font-mono"/>
-                  <p className="text-xs text-muted-foreground">Se preenchido, substitui a busca automática na API do Google.</p>
-                </div>
-              )}
-            </div>
+            <GoogleFallbackPanel
+              clinicaNome={clinicaAtual?.nome??"Clínica"}
+              placeId={clinicaAtual?.google_place_id}
+              textoManual={googleTextoManual}
+              onChangeTexto={setGoogleTextoManual}
+            />
           )}
 
           <Separator/>
@@ -497,7 +614,6 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
       {/* ── Resultados ── */}
       {resultados.length>0&&(
         <div className="space-y-4">
-          {/* Ações globais multi-clínica */}
           {modoComparativo&&formato!=="imagem"&&(
             <div className="flex justify-end">
               <CopyButton text={textoGlobalWhatsapp()} label={`Copiar tudo (${resultados.length} clínicas)`}/>
@@ -511,7 +627,6 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
             </div>
           )}
 
-          {/* Uma clínica: resultado direto */}
           {!modoComparativo&&resultados[0]&&(
             formato==="imagem"?(
               <Card>
@@ -528,7 +643,6 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
             ):<ResultadoWhatsapp resultado={resultados[0]}/>
           )}
 
-          {/* Multi-clínica: tabs */}
           {modoComparativo&&(
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="flex-wrap h-auto gap-1">

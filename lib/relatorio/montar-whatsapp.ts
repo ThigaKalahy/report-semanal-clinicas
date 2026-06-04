@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { formatValor } from "@/lib/format";
 import type { ResultadoPreConsulta } from "@/lib/coletores/pre-consulta";
 import type { ResultadoNPS } from "@/lib/coletores/nps";
-import type { ResultadoGoogle } from "@/lib/coletores/google-places";
+import type { ResultadoGoogle, AvaliacaoGoogle } from "@/lib/coletores/google-places";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 
 export const SEPARATOR = "—- ENVIAR SEPARADO";
@@ -126,9 +126,27 @@ function blocoNPS(nps: ResultadoNPS): string {
   return lines.join("\n").trimEnd();
 }
 
-function blocoGoogle(google: ResultadoGoogle | null, googleManual: string | null): string {
+function renderAvaliacoes(avaliacoes: AvaliacaoGoogle[]): string[] {
+  return avaliacoes.map((av) => {
+    const estrelas = "⭐".repeat(Math.min(Math.max(Math.round(av.nota), 0), 5));
+    return `${estrelas} *${av.autor}*: "${av.texto}"`;
+  });
+}
+
+function blocoGoogle(
+  google: ResultadoGoogle | null,
+  googleManual: string | null,
+  googleManualAvaliacoes?: AvaliacaoGoogle[]
+): string {
   const lines: string[] = [];
   lines.push(`*⭐ Avaliação Google:*`);
+
+  // Prioridade: avaliações estruturadas > texto livre > API
+  if (googleManualAvaliacoes && googleManualAvaliacoes.length > 0) {
+    lines.push(`➤ ${googleManualAvaliacoes.length} avaliação(ões) inseridas manualmente`);
+    lines.push(...renderAvaliacoes(googleManualAvaliacoes));
+    return lines.join("\n");
+  }
 
   if (googleManual?.trim()) {
     lines.push(googleManual.trim());
@@ -141,10 +159,7 @@ function blocoGoogle(google: ResultadoGoogle | null, googleManual: string | null
   }
 
   lines.push(`➤ ${google.total} novas avaliações neste período`);
-  for (const av of google.avaliacoes) {
-    const estrelas = "⭐".repeat(Math.min(Math.max(Math.round(av.nota), 0), 5));
-    lines.push(`${estrelas} *${av.autor}*: "${av.texto}"`);
-  }
+  lines.push(...renderAvaliacoes(google.avaliacoes));
 
   return lines.join("\n");
 }
@@ -158,13 +173,14 @@ export function montarPesquisas(
   google: ResultadoGoogle | null,
   googleManual: string | null,
   ini: Date,
-  fim: Date
+  fim: Date,
+  googleManualAvaliacoes?: AvaliacaoGoogle[]
 ): string {
   const blocos: string[] = [];
 
   blocos.push(blocoPreConsulta(clinicaNome, pre, ini, fim));
   if (nps) blocos.push(blocoNPS(nps));
-  blocos.push(blocoGoogle(google, googleManual));
+  blocos.push(blocoGoogle(google, googleManual, googleManualAvaliacoes));
 
   return blocos.join(`\n\n${SEPARATOR}\n\n`);
 }

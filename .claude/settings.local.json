@@ -31,7 +31,9 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
       "Bash(grep -E \"^cmdk$\")",
       "Bash(grep -E \"^cmdk$|^vaul$\")",
-      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(d.get\\('version',''\\)\\)\")"
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(d.get\\('version',''\\)\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\({deps: Object.keys\\(p.dependencies||{}\\), devDeps: Object.keys\\(p.devDependencies||{}\\)}, null, 2\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/date-fns-tz/package.json'\\).version\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\thiago.silva\\Documents\\projetos\\report-semanal-clinicas\\app\\api\\relatorio-imagem"
