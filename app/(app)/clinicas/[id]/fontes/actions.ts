@@ -22,6 +22,7 @@ function buildMapeamento(tipo: TipoFonte, data: Record<string, string>): Record<
     add("nota_enfermagem");
     add("comentario");
     add("nome_paciente");
+    add("anonimato");
   }
   return m;
 }

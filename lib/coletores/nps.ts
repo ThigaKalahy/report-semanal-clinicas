@@ -50,6 +50,40 @@ function mediaValida(values: (number | null)[]): number | null {
   return valid.reduce((a, b) => a + b, 0) / valid.length;
 }
 
+/**
+ * Verifica se o texto da coluna de anonimato indica que o paciente
+ * pediu sigilo. Normaliza acentos e capitalização antes de comparar.
+ */
+export function isAnonimoTexto(texto: string): boolean {
+  const normalizado = texto
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+  return normalizado.includes("anonimato") || normalizado.includes("anonimo");
+}
+
+/**
+ * Resolve o nome a exibir no comentário:
+ * - Se a coluna de anonimato NÃO está mapeada: usa o nome como está (retrocompatível).
+ * - Se está mapeada:
+ *   - Valor vazio → anônimo (conservador: na dúvida, protege o paciente).
+ *   - Valor contém "anonimato" ou "anonimo" → anônimo.
+ *   - Qualquer outro valor não vazio → exibe o nome normalmente.
+ */
+export function resolverNomePaciente(
+  anonimatoColMapeada: boolean,
+  anonimatoVal: string,
+  nomeOriginal: string
+): string {
+  if (anonimatoColMapeada) {
+    const val = anonimatoVal.trim();
+    const isAnon = val === "" || isAnonimoTexto(val);
+    return isAnon ? "Paciente (anônimo)" : (nomeOriginal || "Paciente");
+  }
+  return nomeOriginal || "Paciente";
+}
+
 export async function coletarNPS(
   fonte: FonteDados,
   dataInicio: Date,
@@ -67,6 +101,7 @@ export async function coletarNPS(
   const notaEnfIdx = idx("nota_enfermagem");
   const comentIdx = idx("comentario");
   const nomeIdx = idx("nome_paciente");
+  const anonimatoIdx = idx("anonimato");
 
   const iniMs = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate()).getTime();
   const fimMs = new Date(dataFim.getFullYear(), dataFim.getMonth(), dataFim.getDate()).getTime();
@@ -107,8 +142,10 @@ export async function coletarNPS(
     if (comentIdx >= 0) {
       const comentario = String(row[comentIdx] ?? "").trim();
       if (comentario) {
-        const nome = nomeIdx >= 0 ? String(row[nomeIdx] ?? "").trim() : "";
-        comentarios.push({ nome: nome || "Paciente", comentario });
+        const nomeOriginal = nomeIdx >= 0 ? String(row[nomeIdx] ?? "").trim() : "";
+        const anonimatoVal = anonimatoIdx >= 0 ? String(row[anonimatoIdx] ?? "") : "";
+        const nome = resolverNomePaciente(anonimatoIdx >= 0, anonimatoVal, nomeOriginal);
+        comentarios.push({ nome, comentario });
       }
     }
   }

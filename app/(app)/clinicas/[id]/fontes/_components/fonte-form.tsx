@@ -69,6 +69,7 @@ function detectNps(cols: Record<string, string>): Partial<NpsFormValues> {
     nota_enfermagem: matchCol(cols, "enfermagem"),
     comentario: matchCol(cols, "comentário", "comentario", "sugestão", "sugestao", "observação"),
     nome_paciente: matchCol(cols, "nome do paciente", "nome completo", "paciente"),
+    anonimato: matchCol(cols, "anonimato", "anônimo", "privacidade", "preferência de privacidade"),
   };
 }
 
@@ -295,6 +296,7 @@ function NpsForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props, 
       nota_enfermagem: m.nota_enfermagem ?? "",
       comentario: m.comentario ?? "",
       nome_paciente: m.nome_paciente ?? "",
+      anonimato: m.anonimato ?? "",
     },
   });
 
@@ -381,6 +383,7 @@ function NpsForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props, 
           <ColInput id="nota_enfermagem" label="Nota enfermagem" {...form.register("nota_enfermagem")} error={errors.nota_enfermagem?.message} />
           <ColInput id="comentario" label="Comentário" {...form.register("comentario")} error={errors.comentario?.message} />
           <ColInput id="nome_paciente" label="Nome do paciente" {...form.register("nome_paciente")} error={errors.nome_paciente?.message} />
+          <ColInput id="anonimato" label="Anonimato (opcional)" {...form.register("anonimato")} error={errors.anonimato?.message} />
         </div>
       </div>
       <FormFooter isSubmitting={isSubmitting} onCancel={onCancel} />

@@ -121,13 +121,17 @@ export function ClinicasClient({ clinicas }: Props) {
                     <div className="flex gap-1.5">
                       <Badge
                         variant={temPre ? "default" : "outline"}
-                        className={temPre ? "bg-gestfy-purple text-white" : "text-muted-foreground"}
+                        className={temPre
+                          ? "bg-gestfy-roxo-03 text-white hover:bg-gestfy-roxo-03/90 border-transparent"
+                          : "text-muted-foreground"}
                       >
                         Pré
                       </Badge>
                       <Badge
                         variant={temNps ? "default" : "outline"}
-                        className={temNps ? "bg-gestfy-magenta text-white" : "text-muted-foreground"}
+                        className={temNps
+                          ? "bg-gestfy-laranja-05 text-white hover:bg-gestfy-laranja-05/90 border-transparent"
+                          : "text-muted-foreground"}
                       >
                         NPS
                       </Badge>

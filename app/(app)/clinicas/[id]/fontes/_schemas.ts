@@ -29,6 +29,7 @@ export const npsSchema = base.extend({
   nota_enfermagem: optionalCol,
   comentario: optionalCol,
   nome_paciente: optionalCol,
+  anonimato: optionalCol,
 });
 
 export type PreConsultaFormValues = z.infer<typeof preConsultaSchema>;
