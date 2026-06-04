@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -12,6 +13,16 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const parkinsans = localFont({
+  src: [
+    { path: "../public/fonts/Parkinsans-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Parkinsans-SemiBold.ttf", weight: "600", style: "normal" },
+    { path: "../public/fonts/Parkinsans-Bold.ttf", weight: "700", style: "normal" },
+  ],
+  variable: "--font-parkinsans",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -28,7 +39,7 @@ export default function RootLayout({
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${parkinsans.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <ThemeProvider>

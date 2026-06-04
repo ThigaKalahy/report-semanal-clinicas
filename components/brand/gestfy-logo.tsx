@@ -1,64 +1,90 @@
+"use client";
+
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 type LogoVariant = "full" | "mark" | "wordmark";
 
 interface GestfyLogoProps {
   variant?: LogoVariant;
+  /** Altura do logo em px (full e mark escalam proporcionalmente) */
   size?: number;
-  showSubtitle?: boolean;
-  /** Força cores claras — use sobre fundos escuros como o painel de login */
+  /** Força versão branca total — use sobre fundos muito escuros como o painel do login */
   onDark?: boolean;
+  className?: string;
 }
 
 export function GestfyLogo({
   variant = "full",
   size = 32,
-  showSubtitle = false,
   onDark = false,
+  className,
 }: GestfyLogoProps) {
-  const mark = (
-    <div className="shrink-0" style={{ height: size, width: size }}>
-      <Image
-        src="/gestfy-logo.png"
-        alt="Gestfy"
-        width={size}
-        height={size}
-        className="object-contain h-full w-full"
-        style={onDark ? { filter: "brightness(0) invert(1)" } : undefined}
-        priority
-      />
-    </div>
-  );
+  // Símbolo G isolado
+  if (variant === "mark") {
+    return (
+      <div className={cn("shrink-0", className)} style={{ height: size, width: size }}>
+        <Image
+          src="/brand/gestfy-symbol.png"
+          alt="Gestfy"
+          width={size}
+          height={size}
+          className="object-contain h-full w-full"
+          style={onDark ? { filter: "brightness(0) invert(1)" } : undefined}
+          priority
+        />
+      </div>
+    );
+  }
 
-  const wordmark = (
-    <div className="flex flex-col leading-none">
-      <span
-        className="font-bold tracking-tight"
-        style={{ fontSize: size * 0.56, lineHeight: 1.1 }}
-      >
-        <span className={onDark ? "text-white" : "text-gestfy-purple dark:text-gestfy-lavender"}>
-          Gest
-        </span>
-        <span className="text-gestfy-orange">fy</span>
-      </span>
-      {showSubtitle && (
+  // Wordmark em texto (fallback)
+  if (variant === "wordmark") {
+    return (
+      <div className={cn("flex flex-col leading-none", className)}>
         <span
-          className={onDark ? "text-white/60 uppercase tracking-widest font-medium" : "text-muted-foreground uppercase tracking-widest font-medium"}
-          style={{ fontSize: size * 0.22 }}
+          className="font-bold tracking-tight font-heading"
+          style={{ fontSize: size * 0.56, lineHeight: 1.1 }}
         >
-          Gestão para Clínicas
+          <span className={onDark ? "text-white" : "text-gestfy-roxo-03 dark:text-gestfy-lavender"}>
+            Gest
+          </span>
+          <span className="text-gestfy-laranja-05">fy</span>
         </span>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
 
-  if (variant === "mark") return mark;
-  if (variant === "wordmark") return wordmark;
+  // Logo completo: wordmark PNG oficial
+  // No tema escuro sem onDark, envolve em fundo translúcido p/ garantir legibilidade
+  const logoH = size;
+  // gestfy-logo-full.png é aprox. 4:1 (largura:altura)
+  const logoW = Math.round(size * 4);
 
   return (
-    <div className="flex items-center gap-2">
-      {mark}
-      {wordmark}
+    <div className={cn("shrink-0", className)}>
+      {onDark ? (
+        // Sobre gradiente/fundo escuro — versão toda branca
+        <Image
+          src="/brand/gestfy-logo-full.png"
+          alt="Gestfy"
+          width={logoW}
+          height={logoH}
+          className="object-contain"
+          style={{ height: logoH, width: "auto", filter: "brightness(0) invert(1)" }}
+          priority
+        />
+      ) : (
+        // Claro: sem filtro. Escuro: drop-shadow luminoso contorna a silhueta real do PNG.
+        <Image
+          src="/brand/gestfy-logo-full.png"
+          alt="Gestfy"
+          width={logoW}
+          height={logoH}
+          className="object-contain dark:logo-relief"
+          style={{ height: logoH, width: "auto" }}
+          priority
+        />
+      )}
     </div>
   );
 }

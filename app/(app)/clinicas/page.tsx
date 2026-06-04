@@ -19,7 +19,7 @@ export default async function ClinicasPage() {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Clínicas</h1>
+          <h1 className="text-2xl font-bold font-heading">Clínicas</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Gerencie as clínicas e suas fontes de dados.
           </p>

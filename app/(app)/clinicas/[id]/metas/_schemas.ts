@@ -15,7 +15,6 @@ export const atualizarRealizadosSchema = z.object({
     z.object({
       id: z.string(),
       valor_realizado: z.string(),
-      valor_realizado_semana: z.string(),
     })
   ),
 });

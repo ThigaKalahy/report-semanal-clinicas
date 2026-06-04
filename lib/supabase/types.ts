@@ -80,6 +80,7 @@ export interface Database {
           nome: string;
           unidade: string;
           formato: "moeda_brl" | "numero_inteiro" | "numero_decimal" | "percentual";
+          comportamento: "acumulativa" | "media";
           ordem_exibicao: number;
           created_at: string;
         };
@@ -88,6 +89,7 @@ export interface Database {
           nome: string;
           unidade: string;
           formato: "moeda_brl" | "numero_inteiro" | "numero_decimal" | "percentual";
+          comportamento?: "acumulativa" | "media";
           ordem_exibicao?: number;
           created_at?: string;
         };
@@ -96,6 +98,7 @@ export interface Database {
           nome?: string;
           unidade?: string;
           formato?: "moeda_brl" | "numero_inteiro" | "numero_decimal" | "percentual";
+          comportamento?: "acumulativa" | "media";
           ordem_exibicao?: number;
         };
         Relationships: [];
@@ -215,3 +218,4 @@ export type RelatorioGeradoInsert = Database["public"]["Tables"]["relatorios_ger
 export type TipoFonte = FonteDados["tipo"];
 export type FormatoRelatorio = RelatorioGerado["formato"];
 export type FormatoMeta = TipoMeta["formato"];
+export type ComportamentoMeta = TipoMeta["comportamento"];

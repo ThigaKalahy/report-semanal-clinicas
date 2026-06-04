@@ -74,7 +74,7 @@ export function FeriadosClient({ feriados }: Props) {
     <>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Feriados</h1>
+          <h1 className="text-2xl font-bold text-foreground font-heading">Feriados</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Datas excluídas do cálculo de dias úteis.
           </p>

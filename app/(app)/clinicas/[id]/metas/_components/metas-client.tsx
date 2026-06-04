@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { formatValor } from "@/lib/format";
-import { calcularMetaPeriodo, descreverPerformance } from "@/lib/metas";
+import { calcularMetaPeriodo, calcularPercentualMeta, descreverPerformance } from "@/lib/metas";
 import { deletarMeta } from "../actions";
 import { MetaFormDialog } from "./meta-form-dialog";
 import { AtualizarRealizadosDialog, type MetaComTipo } from "./atualizar-realizados-dialog";
@@ -92,7 +92,7 @@ export function MetasClient({
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{clinicaNome}</p>
-          <h1 className="text-2xl font-bold text-foreground">Metas</h1>
+          <h1 className="text-2xl font-bold text-foreground font-heading">Metas</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="gap-2" onClick={() => setAtualizarOpen(true)}>
@@ -131,10 +131,10 @@ export function MetasClient({
             <TableRow>
               <TableHead>Tipo</TableHead>
               <TableHead className="text-right">Meta mensal</TableHead>
-              <TableHead className="text-right">Meta até hoje</TableHead>
-              <TableHead className="text-right">Realizado</TableHead>
-              <TableHead className="text-right">Semana</TableHead>
-              <TableHead className="text-center w-28">Performance</TableHead>
+              <TableHead className="text-right">Acumulado</TableHead>
+              <TableHead className="text-right">Meta do período</TableHead>
+              <TableHead className="text-center w-28">% período</TableHead>
+              <TableHead className="text-center w-28">% meta</TableHead>
               <TableHead className="text-center w-28">Atualizado</TableHead>
               <TableHead className="w-16" />
             </TableRow>
@@ -149,31 +149,51 @@ export function MetasClient({
             ) : (
               metas.map((meta) => {
                 const tipo = meta.tipos_meta;
+                const comportamento = tipo.comportamento ?? "acumulativa";
+                const isMedia = comportamento === "media";
+
                 const metaPeriodo = calcularMetaPeriodo(
-                  meta.valor_meta_mensal, diasDecorridos, diasTotal
+                  meta.valor_meta_mensal, diasDecorridos, diasTotal, comportamento
                 );
-                const showPerf = diasDecorridos > 0 && meta.valor_realizado > 0;
-                const perf = showPerf
-                  ? descreverPerformance(meta.valor_realizado, metaPeriodo, meta.valor_meta_mensal)
+
+                // Para acumulativa: exige diasDecorridos > 0; para média: exibe sempre que há realizado.
+                const temRealizado = meta.valor_realizado > 0;
+                const podeMostrarPerf = temRealizado && (isMedia || diasDecorridos > 0);
+
+                const perf = podeMostrarPerf
+                  ? descreverPerformance(
+                      meta.valor_realizado, metaPeriodo, meta.valor_meta_mensal, comportamento
+                    )
+                  : null;
+
+                const pctMensal = temRealizado && meta.valor_meta_mensal > 0
+                  ? calcularPercentualMeta(meta.valor_realizado, meta.valor_meta_mensal)
                   : null;
 
                 return (
                   <TableRow key={meta.id}>
                     <TableCell className="font-medium">{tipo.nome}</TableCell>
+
+                    {/* Meta mensal */}
                     <TableCell className="text-right font-mono text-sm">
                       {formatValor(meta.valor_meta_mensal, tipo.formato)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                      {diasDecorridos > 0
-                        ? formatValor(metaPeriodo, tipo.formato)
-                        : "—"}
-                    </TableCell>
+
+                    {/* Acumulado */}
                     <TableCell className="text-right font-mono text-sm">
                       {formatValor(meta.valor_realizado, tipo.formato)}
                     </TableCell>
+
+                    {/* Meta do período — "—" para métricas de média */}
                     <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                      {formatValor(meta.valor_realizado_semana, tipo.formato)}
+                      {isMedia
+                        ? "—"
+                        : diasDecorridos > 0
+                          ? formatValor(metaPeriodo, tipo.formato)
+                          : "—"}
                     </TableCell>
+
+                    {/* % do período */}
                     <TableCell className="text-center">
                       {perf ? (
                         <Badge
@@ -191,11 +211,19 @@ export function MetasClient({
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
+
+                    {/* % da meta mensal */}
+                    <TableCell className="text-center text-xs font-mono text-muted-foreground">
+                      {pctMensal !== null ? `${pctMensal.toFixed(0)}%` : "—"}
+                    </TableCell>
+
+                    {/* Data de atualização */}
                     <TableCell className="text-center text-xs text-muted-foreground">
                       {meta.data_referencia
                         ? meta.data_referencia.slice(8, 10) + "/" + meta.data_referencia.slice(5, 7)
                         : "—"}
                     </TableCell>
+
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
                         <Button

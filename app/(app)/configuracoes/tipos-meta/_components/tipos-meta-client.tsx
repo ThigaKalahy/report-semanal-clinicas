@@ -40,12 +40,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { tipoMetaSchema, FORMATOS, type TipoMetaFormValues } from "../_schemas";
+import { tipoMetaSchema, FORMATOS, COMPORTAMENTOS, type TipoMetaFormValues } from "../_schemas";
 import { createTipoMeta, updateTipoMeta, deleteTipoMeta } from "../actions";
 import type { TipoMeta } from "@/lib/supabase/types";
 
 const FORMATO_LABEL: Record<string, string> = Object.fromEntries(
   FORMATOS.map((f) => [f.value, f.label])
+);
+
+const COMPORTAMENTO_LABEL: Record<string, string> = Object.fromEntries(
+  COMPORTAMENTOS.map((c) => [c.value, c.label])
 );
 
 interface Props {
@@ -81,7 +85,7 @@ export function TiposMetaClient({ tiposMeta }: Props) {
     <>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Tipos de Meta</h1>
+          <h1 className="text-2xl font-bold text-foreground font-heading">Tipos de Meta</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Categorias usadas em todas as clínicas para definir e acompanhar metas.
           </p>
@@ -100,13 +104,14 @@ export function TiposMetaClient({ tiposMeta }: Props) {
               <TableHead>Nome</TableHead>
               <TableHead>Unidade</TableHead>
               <TableHead>Formato</TableHead>
+              <TableHead>Comportamento</TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {tiposMeta.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   Nenhum tipo cadastrado.
                 </TableCell>
               </TableRow>
@@ -119,6 +124,9 @@ export function TiposMetaClient({ tiposMeta }: Props) {
                   <TableCell className="font-medium">{tipo.nome}</TableCell>
                   <TableCell className="text-muted-foreground font-mono text-sm">{tipo.unidade}</TableCell>
                   <TableCell className="text-sm">{FORMATO_LABEL[tipo.formato] ?? tipo.formato}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {COMPORTAMENTO_LABEL[tipo.comportamento] ?? tipo.comportamento}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 justify-end">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(tipo)}>
@@ -190,7 +198,13 @@ function TipoMetaDialog({
 
   const form = useForm<TipoMetaFormValues>({
     resolver: zodResolver(tipoMetaSchema),
-    defaultValues: { nome: "", unidade: "", formato: "numero_inteiro", ordem_exibicao: String(nextOrdem) },
+    defaultValues: {
+      nome: "",
+      unidade: "",
+      formato: "numero_inteiro",
+      comportamento: "acumulativa",
+      ordem_exibicao: String(nextOrdem),
+    },
   });
 
   // Reset when dialog opens
@@ -200,12 +214,12 @@ function TipoMetaDialog({
         nome: editing?.nome ?? "",
         unidade: editing?.unidade ?? "",
         formato: editing?.formato ?? "numero_inteiro",
+        comportamento: editing?.comportamento ?? "acumulativa",
         ordem_exibicao: String(editing?.ordem_exibicao ?? nextOrdem),
       });
     }
   });
 
-  // Workaround: use key to reset form when editing changes
   const errors = form.formState.errors;
 
   async function onSubmit(data: TipoMetaFormValues) {
@@ -233,6 +247,7 @@ function TipoMetaDialog({
             nome: editing?.nome ?? "",
             unidade: editing?.unidade ?? "",
             formato: editing?.formato ?? "numero_inteiro",
+            comportamento: editing?.comportamento ?? "acumulativa",
             ordem_exibicao: String(editing?.ordem_exibicao ?? nextOrdem),
           })}
         >
@@ -276,6 +291,26 @@ function TipoMetaDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Comportamento</Label>
+            <Select
+              value={form.watch("comportamento")}
+              onValueChange={(v) => form.setValue("comportamento", v as TipoMetaFormValues["comportamento"])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COMPORTAMENTOS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Acumulativa: cresce ao longo do mês (ex: faturamento). Média: nota fixa (ex: NPS).
+            </p>
           </div>
 
           <DialogFooter className="pt-2">

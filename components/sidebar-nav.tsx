@@ -71,7 +71,7 @@ export function SidebarNav() {
       </div>
 
       <div className="pt-4 pb-0.5">
-        <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest">
+        <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest font-heading">
           Configurações
         </p>
       </div>

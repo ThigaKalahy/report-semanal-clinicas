@@ -5,10 +5,10 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { tipoMetaSchema } from "./_schemas";
 
 const SEED = [
-  { nome: "Faturamento", unidade: "R$", formato: "moeda_brl" as const, ordem_exibicao: 1 },
-  { nome: "NPS respostas", unidade: "un", formato: "numero_inteiro" as const, ordem_exibicao: 2 },
-  { nome: "Nota NPS Recepção", unidade: "—", formato: "numero_decimal" as const, ordem_exibicao: 3 },
-  { nome: "Nota Google", unidade: "un", formato: "numero_decimal" as const, ordem_exibicao: 4 },
+  { nome: "Faturamento",       unidade: "R$", formato: "moeda_brl"      as const, comportamento: "acumulativa" as const, ordem_exibicao: 1 },
+  { nome: "NPS respostas",     unidade: "un", formato: "numero_inteiro" as const, comportamento: "acumulativa" as const, ordem_exibicao: 2 },
+  { nome: "Nota NPS Recepção", unidade: "—",  formato: "numero_decimal" as const, comportamento: "media"       as const, ordem_exibicao: 3 },
+  { nome: "Nota Google",       unidade: "un", formato: "numero_decimal" as const, comportamento: "acumulativa" as const, ordem_exibicao: 4 },
 ];
 
 export async function seedTiposMeta() {
@@ -28,6 +28,7 @@ export async function createTipoMeta(data: unknown) {
     nome: parsed.data.nome,
     unidade: parsed.data.unidade,
     formato: parsed.data.formato,
+    comportamento: parsed.data.comportamento,
     ordem_exibicao: parseInt(parsed.data.ordem_exibicao, 10),
   });
   if (error) return { error: error.message };
@@ -46,6 +47,7 @@ export async function updateTipoMeta(id: string, data: unknown) {
       nome: parsed.data.nome,
       unidade: parsed.data.unidade,
       formato: parsed.data.formato,
+      comportamento: parsed.data.comportamento,
       ordem_exibicao: parseInt(parsed.data.ordem_exibicao, 10),
     })
     .eq("id", id);

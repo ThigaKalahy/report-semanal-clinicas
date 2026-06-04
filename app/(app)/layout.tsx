@@ -9,7 +9,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen">
       <aside className="w-64 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col">
         <div className="px-5 py-5">
-          <GestfyLogo variant="full" size={32} showSubtitle />
+          <GestfyLogo variant="full" size={32} />
         </div>
 
         <Separator className="bg-sidebar-border" />

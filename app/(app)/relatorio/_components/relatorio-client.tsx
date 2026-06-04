@@ -395,7 +395,7 @@ export function RelatorioClient({clinicas}:{clinicas:Clinica[]}) {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Gerar Report Semanal</h1>
+      <h1 className="text-2xl font-bold font-heading">Gerar Report Semanal</h1>
 
       {/* ── Form ── */}
       <Card>

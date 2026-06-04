@@ -64,10 +64,9 @@ export async function atualizarRealizados(clinicaId: string, data: unknown) {
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const db = getSupabaseAdmin();
-  const promises = parsed.data.updates.map(({ id, valor_realizado, valor_realizado_semana }) =>
+  const promises = parsed.data.updates.map(({ id, valor_realizado }) =>
     db.from("metas").update({
       valor_realizado: toNumber(valor_realizado),
-      valor_realizado_semana: toNumber(valor_realizado_semana),
       data_referencia: parsed.data.data_referencia,
     }).eq("id", id)
   );

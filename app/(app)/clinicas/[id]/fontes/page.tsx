@@ -43,7 +43,7 @@ export default async function FontesPage({ params }: Props) {
           <ChevronLeft className="h-4 w-4" />
           Clínicas
         </Link>
-        <h1 className="text-2xl font-bold">{clinica.nome}</h1>
+        <h1 className="text-2xl font-bold font-heading">{clinica.nome}</h1>
         <p className="text-sm text-muted-foreground">
           Configure as planilhas Google Sheets usadas para coletar os dados do relatório.
         </p>
