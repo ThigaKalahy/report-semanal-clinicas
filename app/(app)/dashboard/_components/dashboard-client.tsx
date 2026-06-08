@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { format } from "date-fns";
-import { Copy, Check, FileText, Trash2 } from "lucide-react";
+import { Copy, Check, FileText, Trash2, Download, RotateCcw, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -68,6 +70,71 @@ function fmtPeriodo(ini: string | null, fim: string | null): string {
   const fimStr = `${fd}/${fm}`;
   return iy === fy ? `${iniStr} – ${fimStr}` : `${iniStr}/${iy} – ${fimStr}/${fy}`;
 }
+
+function slugify(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+// ── Conteúdo do dialog de visualização ───────────────────────────────────────
+
+function DialogConteudo({ rel }: { rel: RelatorioComClinica }) {
+  // Imagem: renderiza via endpoint usando dados_json salvo
+  if (rel.formato === "imagem") {
+    const temDados = rel.dados_json !== null && typeof rel.dados_json === "object" && !Array.isArray(rel.dados_json);
+    if (!temDados) {
+      return (
+        <p className="text-sm text-muted-foreground py-4">
+          Dados da imagem não disponíveis (dados_json ausente ou corrompido).
+        </p>
+      );
+    }
+    const imgUrl = `/api/relatorio-imagem/${rel.id}`;
+    const clinicaSlug = slugify(rel.clinicas?.nome ?? "relatorio");
+    const fileName = `${clinicaSlug}_${rel.data_inicio ?? rel.id}.png`;
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <a href={imgUrl} target="_blank" rel="noreferrer">
+              <ImageIcon className="h-3.5 w-3.5" />Abrir
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <a href={imgUrl} download={fileName}>
+              <Download className="h-3.5 w-3.5" />Baixar PNG
+            </a>
+          </Button>
+        </div>
+        <div className="rounded-lg overflow-hidden border bg-muted/30">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imgUrl}
+            alt={`Infográfico ${rel.clinicas?.nome ?? ""}`}
+            className="w-full max-w-sm mx-auto block"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // WhatsApp: mostra markdown
+  if (rel.conteudo_markdown) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <CopyButton text={rel.conteudo_markdown} />
+        </div>
+        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed rounded-md bg-muted/60 p-4 max-h-[55vh] overflow-y-auto">
+          {rel.conteudo_markdown}
+        </pre>
+      </div>
+    );
+  }
+
+  return <p className="text-sm text-muted-foreground py-4">Sem conteúdo.</p>;
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 
 export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinica[] }) {
   const [rows, setRows] = useState<RelatorioComClinica[]>(relatorios);
@@ -170,7 +237,7 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
                   <TableHead>Formato</TableHead>
                   <TableHead>Período</TableHead>
                   <TableHead>Gerado em</TableHead>
-                  <TableHead className="w-28" />
+                  <TableHead className="w-36" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -221,6 +288,16 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
                         <Button
                           variant="ghost"
                           size="sm"
+                          title="Reabrir na tela de geração"
+                          asChild
+                        >
+                          <Link href={`/relatorio?relatorio=${r.id}`}>
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => setConfirmPending({ ids: [r.id] })}
                         >
@@ -252,17 +329,18 @@ export function DashboardClient({ relatorios }: { relatorios: RelatorioComClinic
             </DialogTitle>
           </DialogHeader>
 
-          {viewing?.conteudo_markdown ? (
-            <div className="space-y-3">
-              <div className="flex justify-end">
-                <CopyButton text={viewing.conteudo_markdown} />
-              </div>
-              <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed rounded-md bg-muted/60 p-4 max-h-[55vh] overflow-y-auto">
-                {viewing.conteudo_markdown}
-              </pre>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground py-4">Sem conteúdo.</p>
+          {viewing && <DialogConteudo rel={viewing} />}
+
+          {/* Rodapé do dialog: botão Reabrir */}
+          {viewing && (
+            <DialogFooter className="pt-2">
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <Link href={`/relatorio?relatorio=${viewing.id}`}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reabrir na tela de geração
+                </Link>
+              </Button>
+            </DialogFooter>
           )}
         </DialogContent>
       </Dialog>

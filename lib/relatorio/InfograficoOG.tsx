@@ -255,14 +255,15 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
     rodape: { mes_ano: raw.rodape?.mes_ano ?? "" },
     visaoGeral: {
       faturamento: {
-        is_media:      f?.is_media      ?? false,
-        acumulado:     f?.acumulado     ?? "N/A",
-        meta_periodo:  f?.meta_periodo  ?? "N/A",
-        pct_periodo:   f?.pct_periodo   ?? null,
-        acima_periodo: f?.acima_periodo ?? false,
-        meta_mensal:   f?.meta_mensal   ?? "N/A",
-        pct_mensal:    f?.pct_mensal    ?? null,
-        acima_mensal:  f?.acima_mensal  ?? false,
+        is_media:                f?.is_media                ?? false,
+        acumulado:               f?.acumulado               ?? "N/A",
+        acumulado_from_planilha: f?.acumulado_from_planilha ?? false,
+        meta_periodo:            f?.meta_periodo            ?? "N/A",
+        pct_periodo:             f?.pct_periodo             ?? null,
+        acima_periodo:           f?.acima_periodo           ?? false,
+        meta_mensal:             f?.meta_mensal             ?? "N/A",
+        pct_mensal:              f?.pct_mensal              ?? null,
+        acima_mensal:            f?.acima_mensal            ?? false,
       },
       npsGoogle: {
         // Suporta dados antigos (meta_nps_realizado era separado de respostas_nps)

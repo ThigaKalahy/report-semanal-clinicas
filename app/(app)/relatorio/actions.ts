@@ -10,6 +10,8 @@ import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
 import { coletarLeads } from "@/lib/coletores/leads";
 import type { ResultadoLeads } from "@/lib/coletores/leads";
 import { coletarMetas } from "@/lib/coletores/metas";
+import { coletarFaturamento } from "@/lib/coletores/faturamento";
+import { descreverPerformance, calcularPercentualMeta } from "@/lib/metas";
 import { montarPesquisas, montarMetas } from "@/lib/relatorio/montar-whatsapp";
 import { montarDadosImagem } from "@/lib/relatorio/montar-imagem-dados";
 import type { RelatorioGeradoInsert } from "@/lib/supabase/types";
@@ -134,11 +136,33 @@ export async function gerarRelatorioWhatsapp(
     );
 
   } else if (formato === "whatsapp_metas") {
-    const metasResult = await coletarMetas(clinicaId, dataFim).catch((err: Error) => {
-      erros.push(`Metas: ${err.message}`);
-      return [];
-    });
-    texto = montarMetas(clinica.nome, metasResult, dataInicio, dataFim);
+    const [metasResult, { data: fontesData }] = await Promise.all([
+      coletarMetas(clinicaId, dataFim).catch((err: Error) => {
+        erros.push(`Metas: ${err.message}`);
+        return [];
+      }),
+      db.from("fontes_dados").select("*").eq("clinica_id", clinicaId),
+    ]);
+
+    const fonteFaturamento = fontesData?.find((f) => f.tipo === "faturamento") ?? null;
+
+    let metas = metasResult;
+
+    // Se há planilha de faturamento, substitui o realizado da meta de faturamento
+    if (fonteFaturamento) {
+      const fatResult = await coletarFaturamento(fonteFaturamento, dataInicio, dataFim).catch(() => null);
+      if (fatResult != null) {
+        metas = metas.map((m) => {
+          if (!m.tipo_nome.toLowerCase().includes("faturamento")) return m;
+          const newRealizado = fatResult.total_faturado;
+          const performance  = descreverPerformance(newRealizado, m.meta_periodo, m.meta_mensal, m.tipo_comportamento);
+          const pct_mensal   = calcularPercentualMeta(newRealizado, m.meta_mensal);
+          return { ...m, realizado: newRealizado, performance, pct_mensal };
+        });
+      }
+    }
+
+    texto = montarMetas(clinica.nome, metas, dataInicio, dataFim);
   }
 
   if (texto) {
@@ -190,11 +214,12 @@ export async function prepararDadosImagem(params: {
     .select("*")
     .eq("clinica_id", clinicaId);
 
-  const fontePre  = fontes?.find((f) => f.tipo === "pre_consulta") ?? null;
-  const fonteNps  = fontes?.find((f) => f.tipo === "nps")          ?? null;
-  const fonteLead = fontes?.find((f) => f.tipo === "leads")        ?? null;
+  const fontePre         = fontes?.find((f) => f.tipo === "pre_consulta") ?? null;
+  const fonteNps         = fontes?.find((f) => f.tipo === "nps")          ?? null;
+  const fonteLead        = fontes?.find((f) => f.tipo === "leads")        ?? null;
+  const fonteFaturamento = fontes?.find((f) => f.tipo === "faturamento")  ?? null;
 
-  const [preResult, npsResult, googleResult, metasResult] = await Promise.allSettled([
+  const [preResult, npsResult, googleResult, metasResult, fatResult] = await Promise.allSettled([
     fontePre
       ? coletarPreConsulta(fontePre, dataInicio, dataFim)
       : Promise.reject(new Error("Fonte Pré-Consulta não configurada")),
@@ -205,12 +230,17 @@ export async function prepararDadosImagem(params: {
       ? coletarAvaliacoesGoogle(clinica.google_place_id, dataInicio, dataFim)
       : Promise.reject(new Error("Google Place ID não configurado")),
     coletarMetas(clinicaId, dataFim),
+    fonteFaturamento
+      ? coletarFaturamento(fonteFaturamento, dataInicio, dataFim)
+      : Promise.reject(new Error("Fonte de faturamento não configurada")),
   ]);
 
   const pre    = preResult.status    === "fulfilled" ? preResult.value    : null;
   const nps    = npsResult.status    === "fulfilled" ? npsResult.value    : null;
   const google = googleResult.status === "fulfilled" ? googleResult.value : null;
   const metas  = metasResult.status  === "fulfilled" ? metasResult.value  : [];
+  // Faturamento da planilha: null se fonte não configurada ou erro de leitura (sem expor erro ao usuário)
+  const fatColetado = fatResult.status === "fulfilled" ? fatResult.value : null;
 
   if (preResult.status    === "rejected")
     erros.push(`Pré-Consulta: ${(preResult.reason as Error).message}`);
@@ -220,6 +250,7 @@ export async function prepararDadosImagem(params: {
     erros.push(`Google: ${(googleResult.reason as Error).message}`);
   if (metasResult.status  === "rejected")
     erros.push(`Metas: ${(metasResult.reason as Error).message}`);
+  // Erro de faturamento não exposto — degradação silenciosa para valor manual da meta
 
   // Leads: manual prevalece; caso contrário, tenta planilha
   let leads: ResultadoLeads | null = null;
@@ -232,7 +263,17 @@ export async function prepararDadosImagem(params: {
     });
   }
 
-  const dados = montarDadosImagem(clinica, pre, nps, google, metas, dataInicio, dataFim, leads);
+  const dados = montarDadosImagem(
+    clinica,
+    pre,
+    nps,
+    google,
+    metas,
+    dataInicio,
+    dataFim,
+    leads,
+    fatColetado?.total_faturado ?? null,
+  );
 
   return { dados, erros };
 }

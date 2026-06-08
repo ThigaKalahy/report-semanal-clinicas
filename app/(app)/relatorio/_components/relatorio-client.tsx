@@ -5,7 +5,7 @@ import { format, subDays, subWeeks, startOfWeek, endOfWeek } from "date-fns";
 import {
   FileText, Copy, Check, ChevronDown, ChevronUp,
   Loader2, AlertTriangle, Plus, Trash2,
-  ExternalLink, Download, Image as ImageIcon, Archive,
+  ExternalLink, Download, Image as ImageIcon, Archive, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import {
   gerarRelatorioWhatsapp, prepararDadosImagem, salvarRelatorioImagem,
 } from "../actions";
 import { SEPARATOR } from "@/lib/relatorio/montar-whatsapp";
-import type { Clinica } from "@/lib/supabase/types";
+import type { Clinica, RelatorioGerado } from "@/lib/supabase/types";
 import type {
   RelatorioImagemData, DestaqueItem, TipoDestaque,
   FaturamentoVisao, NpsGoogleVisao,
@@ -402,8 +402,7 @@ function FormImagem({ dados, onChange }: {
   const pctNps    = calcPct(ng.respostas_nps,    ng.meta_nps_meta);
   const pctGoogle = calcPct(ng.avaliacoes_google, ng.meta_google_meta);
 
-  const FAT_FIELDS: [keyof FaturamentoVisao, string][] = [
-    ["acumulado",       "Acumulado"],
+  const FAT_EXTRA_FIELDS: [keyof FaturamentoVisao, string][] = [
     ["meta_periodo",    "Meta do período"],
     ["meta_mensal",     "Meta mensal"],
   ];
@@ -413,7 +412,21 @@ function FormImagem({ dados, onChange }: {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Faturamento x Meta</h3>
         <div className="grid grid-cols-2 gap-3">
-          {FAT_FIELDS.map(([k, l]) => (
+          {/* Acumulado — renderizado separado para mostrar indicador de planilha */}
+          <div className="space-y-1">
+            <Label className="text-xs">Acumulado</Label>
+            <Input
+              value={fat.acumulado ?? ""}
+              onChange={e => onFatChange({ acumulado: e.target.value })}
+              className="text-sm" />
+            {fat.acumulado_from_planilha && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Database className="h-3 w-3 shrink-0" />
+                Preenchido a partir da planilha de faturamento
+              </p>
+            )}
+          </div>
+          {FAT_EXTRA_FIELDS.map(([k, l]) => (
             <div key={k} className="space-y-1">
               <Label className="text-xs">{l}</Label>
               <Input
@@ -634,21 +647,57 @@ function ClinicaImagemCard({
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export function RelatorioClient({ clinicas }: { clinicas: Clinica[] }) {
-  const [clinicasSel, setClinicasSel] = useState<Set<string>>(new Set());
-  const [preset, setPreset]           = useState<Preset>("semana_passada");
-  const [customIni, setCustomIni]     = useState(format(new Date(), "yyyy-MM-dd"));
-  const [customFim, setCustomFim]     = useState(format(new Date(), "yyyy-MM-dd"));
-  const [formato, setFormato]         = useState<Formato>("whatsapp_pesquisas");
+export function RelatorioClient({
+  clinicas,
+  relatorioParaReabrir,
+}: {
+  clinicas: Clinica[];
+  relatorioParaReabrir?: RelatorioGerado | null;
+}) {
+  const rea = relatorioParaReabrir;
+
+  const [clinicasSel, setClinicasSel] = useState<Set<string>>(
+    () => rea ? new Set([rea.clinica_id]) : new Set()
+  );
+  const [preset, setPreset] = useState<Preset>(
+    () => rea ? "custom" : "semana_passada"
+  );
+  const [customIni, setCustomIni] = useState(
+    () => (rea?.data_inicio) ?? format(new Date(), "yyyy-MM-dd")
+  );
+  const [customFim, setCustomFim] = useState(
+    () => (rea?.data_fim) ?? format(new Date(), "yyyy-MM-dd")
+  );
+  const [formato, setFormato] = useState<Formato>(
+    () => (rea?.formato as Formato | undefined) ?? "whatsapp_pesquisas"
+  );
 
   // Per-clinic manual data (keyed by clinicaId)
   const [googleManualMap, setGoogleManualMap] = useState<Record<string, string>>({});
   const [leadsManualMap, setLeadsManualMap]   = useState<Record<string, LeadsManualDados>>({});
 
-  const [resultados, setResultados]   = useState<ResultadoClinica[]>([]);
+  const [resultados, setResultados] = useState<ResultadoClinica[]>(() => {
+    if (!rea || rea.formato !== "imagem") return [];
+    const dj = rea.dados_json;
+    if (!dj || typeof dj !== "object" || Array.isArray(dj)) return [];
+    const clinica = clinicas.find((c) => c.id === rea.clinica_id);
+    return [{
+      clinicaId:   rea.clinica_id,
+      clinicaNome: clinica?.nome ?? rea.clinica_id,
+      texto:       "",
+      erros:       [],
+      imagemId:    rea.id,
+      imagemUrl:   `/api/relatorio-imagem/${rea.id}`,
+      imagemDados: dj as unknown as RelatorioImagemData,
+    }];
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [progresso, setProgresso]     = useState<{ done: number; total: number } | null>(null);
-  const [datasGeradas, setDatasGeradas] = useState<{ ini: string; fim: string } | null>(null);
+  const [datasGeradas, setDatasGeradas] = useState<{ ini: string; fim: string } | null>(
+    () => rea?.data_inicio && rea.data_fim
+      ? { ini: rea.data_inicio, fim: rea.data_fim }
+      : null
+  );
   const [isZipping, setIsZipping]     = useState(false);
 
   function getDatas(): { ini: string; fim: string } {

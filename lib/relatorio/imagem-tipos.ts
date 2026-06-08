@@ -8,6 +8,7 @@ export interface DestaqueItem {
 export interface FaturamentoVisao {
   is_media: boolean;
   acumulado: string;
+  acumulado_from_planilha?: boolean;  // true quando veio do coletor de faturamento
   meta_periodo: string;
   pct_periodo: number | null;  // diferença vs meta proporcional; null = N/A
   acima_periodo: boolean;
