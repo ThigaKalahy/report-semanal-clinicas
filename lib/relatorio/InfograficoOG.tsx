@@ -78,7 +78,7 @@ function CardLabel({ label }: { label: string }) {
   );
 }
 
-// ─── Status pill (substitui emoji 🔴 / ✓) ─────────────────────────────────────
+// ─── Status pill: diferença vs meta proporcional (+/-X%) ─────────────────────
 function StatusPill({ pct, acima }: { pct: number; acima: boolean }) {
   return (
     <div
@@ -102,17 +102,42 @@ function StatusPill({ pct, acima }: { pct: number; acima: boolean }) {
   );
 }
 
+// ─── Atingimento pill: realizado / meta_mensal ("X% da meta") ─────────────────
+function AtingimentoPill({ pct, acima }: { pct: number; acima: boolean }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        background: acima ? C.verde : C.vermelho,
+        borderRadius: 4,
+        paddingTop: 2,
+        paddingBottom: 2,
+        paddingLeft: 7,
+        paddingRight: 7,
+        fontSize: 12,
+        fontWeight: 700,
+        color: C.branco,
+      }}
+    >
+      {pct}% da meta
+    </div>
+  );
+}
+
 // ─── Linha label + valor + pill ───────────────────────────────────────────────
 function MetaLinha({
   label,
   valor,
   pct,
   acima,
+  tipo = "diferenca",
 }: {
   label: string;
   valor: string;
   pct: number | null;
   acima: boolean;
+  tipo?: "diferenca" | "atingimento";
 }) {
   return (
     <div style={col({ gap: 2 })}>
@@ -131,7 +156,11 @@ function MetaLinha({
         <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>
           {valor}
         </div>
-        {pct !== null && <StatusPill pct={pct} acima={acima} />}
+        {pct !== null && (
+          tipo === "atingimento"
+            ? <AtingimentoPill pct={pct} acima={acima} />
+            : <StatusPill pct={pct} acima={acima} />
+        )}
       </div>
     </div>
   );
@@ -226,14 +255,14 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
     rodape: { mes_ano: raw.rodape?.mes_ano ?? "" },
     visaoGeral: {
       faturamento: {
-        realizado_semana: f?.realizado_semana ?? "N/A",
-        acumulado:        f?.acumulado        ?? "N/A",
-        meta_periodo:     f?.meta_periodo     ?? "N/A",
-        pct_periodo:      f?.pct_periodo      ?? null,
-        acima_periodo:    f?.acima_periodo    ?? false,
-        meta_mensal:      f?.meta_mensal      ?? "N/A",
-        pct_mensal:       f?.pct_mensal       ?? null,
-        acima_mensal:     f?.acima_mensal     ?? false,
+        is_media:      f?.is_media      ?? false,
+        acumulado:     f?.acumulado     ?? "N/A",
+        meta_periodo:  f?.meta_periodo  ?? "N/A",
+        pct_periodo:   f?.pct_periodo   ?? null,
+        acima_periodo: f?.acima_periodo ?? false,
+        meta_mensal:   f?.meta_mensal   ?? "N/A",
+        pct_mensal:    f?.pct_mensal    ?? null,
+        acima_mensal:  f?.acima_mensal  ?? false,
       },
       npsGoogle: {
         // Suporta dados antigos (meta_nps_realizado era separado de respostas_nps)
@@ -330,89 +359,135 @@ export function InfograficoOG({
       {/* ── Visão Geral ── */}
       <SecaoTitulo label="VISÃO GERAL" />
 
-      <div style={col({ gap: 16, marginBottom: 8 })}>
-        {/* Faturamento */}
-        <CardBox>
-          <CardLabel label="FATURAMENTO x META" />
-          <div style={col({ gap: 10 })}>
-            <MetaLinha
-              label="Acumulado x Meta do período"
-              valor={`${fat.acumulado} × ${fat.meta_periodo}`}
-              pct={fat.pct_periodo}
-              acima={fat.acima_periodo}
-            />
-            <MetaLinha
-              label="Meta mensal"
-              valor={fat.meta_mensal}
-              pct={fat.pct_mensal}
-              acima={fat.acima_mensal}
-            />
-          </div>
-        </CardBox>
+      {(() => {
+        const isNA = (v: string) => v === "N/A";
 
-        {/* NPS / Google */}
-        <CardBox>
-          <CardLabel label="NPS / GOOGLE" />
-          <div style={col({ gap: 8 })}>
-            <div style={row({ gap: 32 })}>
-              <div style={col({ gap: 2 })}>
-                <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Respostas NPS</div>
-                <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
-                  {ng.respostas_nps !== null ? String(ng.respostas_nps) : "N/A"}
-                </div>
-              </div>
-              <div style={col({ gap: 2 })}>
-                <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Avaliações Google</div>
-                <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
-                  {ng.avaliacoes_google !== null ? String(ng.avaliacoes_google) : "N/A"}
-                </div>
-              </div>
-            </div>
-            {ng.meta_nps_meta !== null && (() => {
-              const pct = ng.respostas_nps !== null && ng.meta_nps_meta > 0
-                ? Math.round(ng.respostas_nps / ng.meta_nps_meta * 100) : null;
-              return (
-                <MetaLinha
-                  label="Meta NPS"
-                  valor={`${ng.respostas_nps !== null ? String(ng.respostas_nps) : "N/A"} / ${ng.meta_nps_meta}`}
-                  pct={pct}
-                  acima={(pct ?? 0) >= 100}
-                />
-              );
-            })()}
-            {ng.meta_google_meta !== null && (() => {
-              const pct = ng.avaliacoes_google !== null && ng.meta_google_meta > 0
-                ? Math.round(ng.avaliacoes_google / ng.meta_google_meta * 100) : null;
-              return (
-                <MetaLinha
-                  label="Meta Google"
-                  valor={`${ng.avaliacoes_google !== null ? String(ng.avaliacoes_google) : "N/A"} / ${ng.meta_google_meta}`}
-                  pct={pct}
-                  acima={(pct ?? 0) >= 100}
-                />
-              );
-            })()}
-          </div>
-        </CardBox>
+        // ── Faturamento ──────────────────────────────────────────────────────
+        const fatVisible = !isNA(fat.acumulado);
+        const showMetaPeriodo = fatVisible && !fat.is_media && !isNA(fat.meta_periodo);
 
-        {/* Comercial */}
-        <CardBox>
-          <CardLabel label="COMERCIAL E CONVERSÃO" />
-          <div style={col({ gap: 8 })}>
-            {[
-              { label: "Conversão de leads",      val: com.conversao_leads      },
-              { label: "Conversão de orçamentos", val: com.conversao_orcamentos },
-              { label: "Total de leads",           val: com.total_leads          },
-              { label: "Total de orçamentos",      val: com.total_orcamentos     },
-            ].map(({ label, val }) => (
-              <div key={label} style={row({ justifyContent: "space-between", alignItems: "center" })}>
-                <div style={{ display: "flex", fontSize: 13, color: C.lavanda }}>{label}</div>
-                <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>{val}</div>
-              </div>
-            ))}
+        // ── NPS / Google ─────────────────────────────────────────────────────
+        const npsVisible =
+          ng.respostas_nps !== null ||
+          ng.avaliacoes_google !== null ||
+          ng.meta_nps_meta !== null ||
+          ng.meta_google_meta !== null;
+
+        // ── Comercial ────────────────────────────────────────────────────────
+        const comercialRows = [
+          { label: "Conversão de leads",      val: com.conversao_leads      },
+          { label: "Conversão de orçamentos", val: com.conversao_orcamentos },
+          { label: "Total de leads",           val: com.total_leads          },
+          { label: "Total de orçamentos",      val: com.total_orcamentos     },
+        ].filter((r) => !isNA(r.val));
+        const comercialVisible = comercialRows.length > 0;
+
+        return (
+          <div style={col({ gap: 16, marginBottom: 8 })}>
+            {/* Faturamento */}
+            {fatVisible && (
+              <CardBox>
+                <CardLabel label="FATURAMENTO x META" />
+                <div style={col({ gap: 10 })}>
+                  {showMetaPeriodo && (
+                    <MetaLinha
+                      label="Acumulado x Meta do período"
+                      valor={`${fat.acumulado} × ${fat.meta_periodo}`}
+                      pct={fat.pct_periodo}
+                      acima={fat.acima_periodo}
+                    />
+                  )}
+                  {!showMetaPeriodo && (
+                    <MetaLinha
+                      label="Acumulado"
+                      valor={fat.acumulado}
+                      pct={null}
+                      acima={false}
+                    />
+                  )}
+                  <MetaLinha
+                    label="Meta mensal"
+                    valor={fat.meta_mensal}
+                    pct={fat.pct_mensal}
+                    acima={fat.acima_mensal}
+                    tipo="atingimento"
+                  />
+                </div>
+              </CardBox>
+            )}
+
+            {/* NPS / Google */}
+            {npsVisible && (
+              <CardBox>
+                <CardLabel label="NPS / GOOGLE" />
+                <div style={col({ gap: 8 })}>
+                  {(ng.respostas_nps !== null || ng.avaliacoes_google !== null) && (
+                    <div style={row({ gap: 32 })}>
+                      {ng.respostas_nps !== null && (
+                        <div style={col({ gap: 2 })}>
+                          <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Respostas NPS</div>
+                          <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
+                            {String(ng.respostas_nps)}
+                          </div>
+                        </div>
+                      )}
+                      {ng.avaliacoes_google !== null && (
+                        <div style={col({ gap: 2 })}>
+                          <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Avaliações Google</div>
+                          <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
+                            {String(ng.avaliacoes_google)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {ng.meta_nps_meta !== null && (() => {
+                    const pct = ng.respostas_nps !== null && ng.meta_nps_meta > 0
+                      ? Math.round(ng.respostas_nps / ng.meta_nps_meta * 100) : null;
+                    return (
+                      <MetaLinha
+                        label="Meta NPS"
+                        valor={`${ng.respostas_nps !== null ? String(ng.respostas_nps) : "—"} / ${ng.meta_nps_meta}`}
+                        pct={pct}
+                        acima={(pct ?? 0) >= 100}
+                        tipo="atingimento"
+                      />
+                    );
+                  })()}
+                  {ng.meta_google_meta !== null && (() => {
+                    const pct = ng.avaliacoes_google !== null && ng.meta_google_meta > 0
+                      ? Math.round(ng.avaliacoes_google / ng.meta_google_meta * 100) : null;
+                    return (
+                      <MetaLinha
+                        label="Meta Google"
+                        valor={`${ng.avaliacoes_google !== null ? String(ng.avaliacoes_google) : "—"} / ${ng.meta_google_meta}`}
+                        pct={pct}
+                        acima={(pct ?? 0) >= 100}
+                        tipo="atingimento"
+                      />
+                    );
+                  })()}
+                </div>
+              </CardBox>
+            )}
+
+            {/* Comercial */}
+            {comercialVisible && (
+              <CardBox>
+                <CardLabel label="COMERCIAL E CONVERSÃO" />
+                <div style={col({ gap: 8 })}>
+                  {comercialRows.map(({ label, val }) => (
+                    <div key={label} style={row({ justifyContent: "space-between", alignItems: "center" })}>
+                      <div style={{ display: "flex", fontSize: 13, color: C.lavanda }}>{label}</div>
+                      <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardBox>
+            )}
           </div>
-        </CardBox>
-      </div>
+        );
+      })()}
 
       {/* ── Destaques ── */}
       {destaques.length > 0 && (

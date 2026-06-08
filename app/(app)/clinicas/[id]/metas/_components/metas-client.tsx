@@ -220,9 +220,9 @@ export function MetasClient({
                           : "—"}
                     </TableCell>
 
-                    {/* % do período */}
+                    {/* % do período — oculto para tipos de média (sem proporcionalidade por dias) */}
                     <TableCell className="text-center">
-                      {perf ? (
+                      {!isMedia && perf ? (
                         <Badge
                           className={cn(
                             "text-xs font-mono",

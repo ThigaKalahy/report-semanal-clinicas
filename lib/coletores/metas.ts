@@ -6,12 +6,13 @@ import {
   calcularPercentualMeta,
   type PerformanceInfo,
 } from "@/lib/metas";
-import type { TipoMeta, Meta, FormatoMeta } from "@/lib/supabase/types";
+import type { TipoMeta, Meta, FormatoMeta, ComportamentoMeta } from "@/lib/supabase/types";
 
 export interface ResultadoMeta {
   tipo_nome: string;
   tipo_formato: FormatoMeta;
   tipo_unidade: string;
+  tipo_comportamento: ComportamentoMeta;
   realizado: number;
   realizado_semana: number;
   meta_periodo: number;
@@ -70,21 +71,25 @@ export async function coletarMetas(
 
   return metas.map((meta) => {
     const tipo = meta.tipos_meta;
-    const meta_periodo = calcularMetaPeriodo(meta.valor_meta_mensal, diasDecorridos, diasTotal);
+    const comportamento = tipo.comportamento ?? "acumulativa";
+    const meta_periodo = calcularMetaPeriodo(meta.valor_meta_mensal, diasDecorridos, diasTotal, comportamento);
     console.log(`[metas] "${tipo.nome}":`, {
       valor_meta_mensal: meta.valor_meta_mensal,
       metaPeriodo: meta_periodo,
+      comportamento,
     });
     const performance = descreverPerformance(
       meta.valor_realizado,
       meta_periodo,
-      meta.valor_meta_mensal
+      meta.valor_meta_mensal,
+      comportamento
     );
     const pct_mensal = calcularPercentualMeta(meta.valor_realizado, meta.valor_meta_mensal);
     return {
       tipo_nome: tipo.nome,
       tipo_formato: tipo.formato,
       tipo_unidade: tipo.unidade,
+      tipo_comportamento: comportamento,
       realizado: meta.valor_realizado,
       realizado_semana: meta.valor_realizado_semana,
       meta_periodo,

@@ -33,35 +33,36 @@ function buildFaturamento(metas: ResultadoMeta[]): FaturamentoVisao {
 
   if (!fat) {
     return {
-      realizado_semana: "N/A",
-      acumulado:        "N/A",
-      meta_periodo:     "N/A",
-      pct_periodo:      null,
-      acima_periodo:    false,
-      meta_mensal:      "N/A",
-      pct_mensal:       null,
-      acima_mensal:     false,
+      is_media:      false,
+      acumulado:     "N/A",
+      meta_periodo:  "N/A",
+      pct_periodo:   null,
+      acima_periodo: false,
+      meta_mensal:   "N/A",
+      pct_mensal:    null,
+      acima_mensal:  false,
     };
   }
 
-  // Diferença vs meta: (realizado - meta) / meta * 100; badge mostra valor absoluto,
-  // sinal vem de acima_periodo/acima_mensal.
+  // pct_periodo: diferença relativa vs meta proporcional (badge +/-).
   const diffPeriodo = fat.meta_periodo > 0
     ? Math.round(((fat.realizado - fat.meta_periodo) / fat.meta_periodo) * 100)
     : null;
-  const diffMensal = fat.meta_mensal > 0
-    ? Math.round(((fat.realizado - fat.meta_mensal) / fat.meta_mensal) * 100)
+
+  // pct_mensal: atingimento (acumulado / meta_mensal * 100).
+  const atingimento = fat.meta_mensal > 0
+    ? Math.round((fat.realizado / fat.meta_mensal) * 100)
     : null;
 
   return {
-    realizado_semana: fmtMoeda(fat.realizado_semana),
-    acumulado:        fmtMoeda(fat.realizado),
-    meta_periodo:     fmtMoeda(fat.meta_periodo),
-    pct_periodo:      diffPeriodo !== null ? Math.abs(diffPeriodo) : null,
-    acima_periodo:    fat.realizado >= fat.meta_periodo,
-    meta_mensal:      fmtMoeda(fat.meta_mensal),
-    pct_mensal:       diffMensal !== null ? Math.abs(diffMensal) : null,
-    acima_mensal:     fat.realizado >= fat.meta_mensal,
+    is_media:      fat.tipo_comportamento === "media",
+    acumulado:     fmtMoeda(fat.realizado),
+    meta_periodo:  fmtMoeda(fat.meta_periodo),
+    pct_periodo:   diffPeriodo !== null ? Math.abs(diffPeriodo) : null,
+    acima_periodo: fat.realizado >= fat.meta_periodo,
+    meta_mensal:   fmtMoeda(fat.meta_mensal),
+    pct_mensal:    atingimento,
+    acima_mensal:  fat.realizado >= fat.meta_mensal,
   };
 }
 

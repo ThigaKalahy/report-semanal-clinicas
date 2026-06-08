@@ -6,13 +6,13 @@ export interface DestaqueItem {
 }
 
 export interface FaturamentoVisao {
-  realizado_semana: string;   // texto formatado, ex: "R$ 12.500"
+  is_media: boolean;
   acumulado: string;
   meta_periodo: string;
-  pct_periodo: number | null;  // null = N/A
+  pct_periodo: number | null;  // diferença vs meta proporcional; null = N/A
   acima_periodo: boolean;
   meta_mensal: string;
-  pct_mensal: number | null;
+  pct_mensal: number | null;   // atingimento % (realizado / meta_mensal * 100); null = N/A
   acima_mensal: boolean;
 }
 

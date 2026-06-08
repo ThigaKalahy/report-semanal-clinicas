@@ -403,10 +403,9 @@ function FormImagem({ dados, onChange }: {
   const pctGoogle = calcPct(ng.avaliacoes_google, ng.meta_google_meta);
 
   const FAT_FIELDS: [keyof FaturamentoVisao, string][] = [
-    ["realizado_semana", "Realizado semanal"],
-    ["acumulado",        "Acumulado"],
-    ["meta_periodo",     "Meta do período"],
-    ["meta_mensal",      "Meta mensal"],
+    ["acumulado",       "Acumulado"],
+    ["meta_periodo",    "Meta do período"],
+    ["meta_mensal",     "Meta mensal"],
   ];
 
   return (
