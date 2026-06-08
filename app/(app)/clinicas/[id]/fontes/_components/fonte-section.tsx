@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Settings, Pencil, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Settings, Pencil, Trash2, CheckCircle2, XCircle, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,11 +17,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FonteForm } from "./fonte-form";
+import { TesteLeituraDialog } from "./teste-leitura-dialog";
 import { deleteFonte } from "../actions";
-import type { FonteDados, Json } from "@/lib/supabase/types";
+import type { FonteDados, Json, TipoFonte } from "@/lib/supabase/types";
 
 interface Props {
-  tipo: "pre_consulta" | "nps" | "leads";
+  tipo: TipoFonte;
   title: string;
   description: string;
   clinicaId: string;
@@ -48,16 +49,21 @@ function getMapeamentoStr(mapeamento: Json): Record<string, string> {
   return {};
 }
 
-const TIPO_LABELS: Record<"pre_consulta" | "nps" | "leads", string> = {
+const TIPO_LABELS: Record<TipoFonte, string> = {
   pre_consulta: "Pré-Consulta",
   nps:          "NPS",
   leads:        "Leads",
+  faturamento:  "Faturamento",
+  despesa:      "Despesa",
 };
 
 export function FonteSection({ tipo, title, description, clinicaId, fonte }: Props) {
-  const [isEditing, setIsEditing]     = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [isDeleting, setIsDeleting]   = useState(false);
+  const [isEditing,      setIsEditing]      = useState(false);
+  const [confirmDelete,  setConfirmDelete]  = useState(false);
+  const [isDeleting,     setIsDeleting]     = useState(false);
+  const [testeOpen,      setTesteOpen]      = useState(false);
+
+  const isFinanceiro = tipo === "faturamento" || tipo === "despesa";
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -88,6 +94,11 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
             </div>
             <div className="flex gap-2">
               {fonte && !isEditing && (<>
+                {isFinanceiro && (
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTesteOpen(true)}>
+                    <FlaskConical className="h-3.5 w-3.5" />Testar leitura
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsEditing(true)}>
                   <Pencil className="h-3.5 w-3.5" />Editar
                 </Button>
@@ -121,9 +132,9 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Planilha
                 </div>
-                <ColBadge label="Sheet ID"     value={fonte.sheet_id} />
-                <ColBadge label="Aba"          value={fonte.aba_nome} />
-                <ColBadge label="Coluna data"  value={fonte.coluna_data} />
+                <ColBadge label="Sheet ID"    value={fonte.sheet_id} />
+                <ColBadge label="Aba"         value={fonte.aba_nome} />
+                <ColBadge label="Coluna data" value={fonte.coluna_data} />
               </div>
               {(() => {
                 const m = getMapeamentoStr(fonte.mapeamento);
@@ -151,6 +162,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
         </CardContent>
       </Card>
 
+      {/* Diálogo de exclusão */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -170,6 +182,16 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Diálogo de teste de leitura (só fontes financeiras) */}
+      {isFinanceiro && (
+        <TesteLeituraDialog
+          clinicaId={clinicaId}
+          tipo={tipo as "faturamento" | "despesa"}
+          open={testeOpen}
+          onOpenChange={setTesteOpen}
+        />
+      )}
     </>
   );
 }

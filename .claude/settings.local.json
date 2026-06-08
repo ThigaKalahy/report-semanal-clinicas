@@ -38,7 +38,8 @@
       "Bash(xargs grep -l \"Gerar\\\\|gerar\")",
       "Bash(npx next *)",
       "Bash(node -e \"const sharp = require\\('sharp'\\); sharp\\('public/brand/gestfy-symbol.png'\\).metadata\\(\\).then\\(m => console.log\\(m\\)\\).catch\\(e => console.log\\('sharp error:', e.message\\)\\)\")",
-      "Bash(Remove-Item \"c:\\\\Users\\\\thiago.silva\\\\Documents\\\\projetos\\\\report-semanal-clinicas\\\\app\\\\favicon.ico\" -Force)"
+      "Bash(Remove-Item \"c:\\\\Users\\\\thiago.silva\\\\Documents\\\\projetos\\\\report-semanal-clinicas\\\\app\\\\favicon.ico\" -Force)",
+      "Bash(dir /s /b \"c:\\\\Users\\\\thiago.silva\\\\Documents\\\\projetos\\\\report-semanal-clinicas\\\\app\\\\\\(app\\)\\\\clinicas\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\thiago.silva\\Documents\\projetos\\report-semanal-clinicas\\app\\api\\relatorio-imagem"

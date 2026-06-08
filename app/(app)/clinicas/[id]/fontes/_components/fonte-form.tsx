@@ -15,9 +15,13 @@ import {
   preConsultaSchema,
   npsSchema,
   leadsSchema,
+  faturamentoSchema,
+  despesaSchema,
   type PreConsultaFormValues,
   type NpsFormValues,
   type LeadsFormValues,
+  type FaturamentoFormValues,
+  type DespesaFormValues,
 } from "../_schemas";
 import type { FonteDados, Json } from "@/lib/supabase/types";
 
@@ -83,10 +87,27 @@ function detectLeads(cols: Record<string, string>): Partial<LeadsFormValues> {
   };
 }
 
+function detectFaturamento(cols: Record<string, string>): Partial<FaturamentoFormValues> {
+  return {
+    coluna_data:  matchCol(cols, "data", "carimbo", "data/hora"),
+    categoria:    matchCol(cols, "categoria", "tipo", "serviço", "procedimento"),
+    valor_pago:   matchCol(cols, "valor", "pagamento", "receita", "faturado"),
+    profissional: matchCol(cols, "profissional", "médico", "medico", "dentista", "operador"),
+  };
+}
+
+function detectDespesa(cols: Record<string, string>): Partial<DespesaFormValues> {
+  return {
+    coluna_data: matchCol(cols, "data", "carimbo", "data/hora"),
+    categoria:   matchCol(cols, "categoria", "tipo", "centro de custo"),
+    valor_pago:  matchCol(cols, "valor", "despesa", "custo", "pagamento"),
+  };
+}
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 interface Props {
-  tipo: "pre_consulta" | "nps" | "leads";
+  tipo: "pre_consulta" | "nps" | "leads" | "faturamento" | "despesa";
   clinicaId: string;
   existingFonte: FonteDados | null;
   onSuccess: () => void;
@@ -524,10 +545,190 @@ function LeadsForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props
   );
 }
 
+// ── Faturamento form ──────────────────────────────────────────────────────────
+
+function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props, "tipo">) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting]       = useState(false);
+  const [importText, setImportText]     = useState("");
+  const [showImporter, setShowImporter] = useState(false);
+  const m = existingFonte ? getMapeamento(existingFonte.mapeamento) : {};
+
+  const form = useForm<FaturamentoFormValues>({
+    resolver: zodResolver(faturamentoSchema),
+    defaultValues: {
+      sheet_id:      existingFonte?.sheet_id ?? "",
+      aba_nome:      existingFonte?.aba_nome ?? "",
+      coluna_data:   existingFonte?.coluna_data ?? "",
+      categoria:     m.categoria    ?? "",
+      valor_pago:    m.valor_pago   ?? "",
+      profissional:  m.profissional ?? "",
+      linha_inicial: Number(m.linha_inicial ?? 2),
+    },
+  });
+
+  const errors = form.formState.errors;
+
+  async function testConnection() {
+    setIsTesting(true);
+    await testSheetConnection(form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter);
+    setIsTesting(false);
+  }
+
+  function applyDetection() {
+    const cols = parseColumnText(importText);
+    const detected = detectFaturamento(cols);
+    let filled = 0;
+    for (const [key, val] of Object.entries(detected)) {
+      if (val) { form.setValue(key as keyof FaturamentoFormValues, val, { shouldValidate: true }); filled++; }
+    }
+    toast.success(filled ? `${filled} campo(s) preenchido(s).` : "Nenhum campo reconhecido automaticamente.");
+    if (filled) setShowImporter(false);
+  }
+
+  async function onSubmit(data: FaturamentoFormValues) {
+    setIsSubmitting(true);
+    const result = await upsertFonte(clinicaId, "faturamento", data);
+    setIsSubmitting(false);
+    if (result.error) { toast.error(result.error); }
+    else { toast.success("Fonte configurada."); onSuccess(); }
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      <FormBase form={form} errors={errors as Record<string, { message?: string }>}
+        onTest={testConnection} isTesting={isTesting} />
+      <Separator />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionLabel>Mapeamento de colunas</SectionLabel>
+          <button type="button" onClick={() => setShowImporter((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {showImporter ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}Importar
+          </button>
+        </div>
+        {showImporter && (
+          <ColImporter value={importText} onChange={setImportText}
+            onApply={applyDetection} onClose={() => setShowImporter(false)} />
+        )}
+        <div className="grid grid-cols-2 gap-4">
+          <ColInput id="fat_categoria"   label="Categoria" required {...form.register("categoria")}   error={errors.categoria?.message} />
+          <ColInput id="fat_valor_pago"  label="Valor pago" required {...form.register("valor_pago")}  error={errors.valor_pago?.message} />
+          <ColInput id="fat_profissional" label="Profissional" {...form.register("profissional")} error={errors.profissional?.message} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="fat_linha_inicial">
+            Linha inicial dos dados
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(número)</span>
+          </Label>
+          <Input id="fat_linha_inicial" type="number" min={1} className="w-24"
+            {...form.register("linha_inicial", { valueAsNumber: true })} />
+          <p className="text-xs text-muted-foreground">
+            Linha da planilha onde começam os dados (padrão: 2).
+            Use 3 se há título mesclado antes do cabeçalho.
+          </p>
+          {errors.linha_inicial && <p className="text-xs text-destructive">{String(errors.linha_inicial.message)}</p>}
+        </div>
+      </div>
+      <FormFooter isSubmitting={isSubmitting} onCancel={onCancel} />
+    </form>
+  );
+}
+
+// ── Despesa form ──────────────────────────────────────────────────────────────
+
+function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props, "tipo">) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting]       = useState(false);
+  const [importText, setImportText]     = useState("");
+  const [showImporter, setShowImporter] = useState(false);
+  const m = existingFonte ? getMapeamento(existingFonte.mapeamento) : {};
+
+  const form = useForm<DespesaFormValues>({
+    resolver: zodResolver(despesaSchema),
+    defaultValues: {
+      sheet_id:      existingFonte?.sheet_id ?? "",
+      aba_nome:      existingFonte?.aba_nome ?? "",
+      coluna_data:   existingFonte?.coluna_data ?? "",
+      categoria:     m.categoria  ?? "",
+      valor_pago:    m.valor_pago ?? "",
+      linha_inicial: Number(m.linha_inicial ?? 2),
+    },
+  });
+
+  const errors = form.formState.errors;
+
+  async function testConnection() {
+    setIsTesting(true);
+    await testSheetConnection(form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter);
+    setIsTesting(false);
+  }
+
+  function applyDetection() {
+    const cols = parseColumnText(importText);
+    const detected = detectDespesa(cols);
+    let filled = 0;
+    for (const [key, val] of Object.entries(detected)) {
+      if (val) { form.setValue(key as keyof DespesaFormValues, val, { shouldValidate: true }); filled++; }
+    }
+    toast.success(filled ? `${filled} campo(s) preenchido(s).` : "Nenhum campo reconhecido automaticamente.");
+    if (filled) setShowImporter(false);
+  }
+
+  async function onSubmit(data: DespesaFormValues) {
+    setIsSubmitting(true);
+    const result = await upsertFonte(clinicaId, "despesa", data);
+    setIsSubmitting(false);
+    if (result.error) { toast.error(result.error); }
+    else { toast.success("Fonte configurada."); onSuccess(); }
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      <FormBase form={form} errors={errors as Record<string, { message?: string }>}
+        onTest={testConnection} isTesting={isTesting} />
+      <Separator />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionLabel>Mapeamento de colunas</SectionLabel>
+          <button type="button" onClick={() => setShowImporter((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {showImporter ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}Importar
+          </button>
+        </div>
+        {showImporter && (
+          <ColImporter value={importText} onChange={setImportText}
+            onApply={applyDetection} onClose={() => setShowImporter(false)} />
+        )}
+        <div className="grid grid-cols-2 gap-4">
+          <ColInput id="desp_categoria"  label="Categoria" required {...form.register("categoria")}  error={errors.categoria?.message} />
+          <ColInput id="desp_valor_pago" label="Valor pago" required {...form.register("valor_pago")} error={errors.valor_pago?.message} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="desp_linha_inicial">
+            Linha inicial dos dados
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(número)</span>
+          </Label>
+          <Input id="desp_linha_inicial" type="number" min={1} className="w-24"
+            {...form.register("linha_inicial", { valueAsNumber: true })} />
+          <p className="text-xs text-muted-foreground">
+            Linha da planilha onde começam os dados (padrão: 2).
+            Use 3 se há título mesclado antes do cabeçalho.
+          </p>
+          {errors.linha_inicial && <p className="text-xs text-destructive">{String(errors.linha_inicial.message)}</p>}
+        </div>
+      </div>
+      <FormFooter isSubmitting={isSubmitting} onCancel={onCancel} />
+    </form>
+  );
+}
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
 export function FonteForm(props: Props) {
   if (props.tipo === "pre_consulta") return <PreConsultaForm {...props} />;
   if (props.tipo === "nps")          return <NpsForm {...props} />;
-  return <LeadsForm {...props} />;
+  if (props.tipo === "leads")        return <LeadsForm {...props} />;
+  if (props.tipo === "faturamento")  return <FaturamentoForm {...props} />;
+  return <DespesaForm {...props} />;
 }

@@ -40,6 +40,21 @@ export const leadsSchema = base.extend({
   linha_inicial:   z.number().int().min(1),
 });
 
+export const faturamentoSchema = base.extend({
+  categoria:     requiredCol,
+  valor_pago:    requiredCol,
+  profissional:  optionalCol,
+  linha_inicial: z.number().int().min(1),
+});
+
+export const despesaSchema = base.extend({
+  categoria:     requiredCol,
+  valor_pago:    requiredCol,
+  linha_inicial: z.number().int().min(1),
+});
+
 export type PreConsultaFormValues = z.infer<typeof preConsultaSchema>;
 export type NpsFormValues         = z.infer<typeof npsSchema>;
 export type LeadsFormValues       = z.infer<typeof leadsSchema>;
+export type FaturamentoFormValues = z.infer<typeof faturamentoSchema>;
+export type DespesaFormValues     = z.infer<typeof despesaSchema>;

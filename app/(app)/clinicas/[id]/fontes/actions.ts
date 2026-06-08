@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { preConsultaSchema, npsSchema, leadsSchema } from "./_schemas";
-import type { Json } from "@/lib/supabase/types";
-
-type TipoFonte = "pre_consulta" | "nps" | "leads";
+import {
+  preConsultaSchema,
+  npsSchema,
+  leadsSchema,
+  faturamentoSchema,
+  despesaSchema,
+} from "./_schemas";
+import { coletarFaturamento, type ResultadoFaturamento } from "@/lib/coletores/faturamento";
+import { coletarDespesa,    type ResultadoDespesa }      from "@/lib/coletores/despesa";
+import type { Json, TipoFonte } from "@/lib/supabase/types";
 
 function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record<string, string> {
   const m: Record<string, string> = {};
@@ -24,11 +30,21 @@ function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record
     add("nome_paciente");
     add("anonimato");
     add("indicacao");
-  } else {
-    // leads
+  } else if (tipo === "leads") {
     add("convertido");
     if (data.valor_conversao) m.valor_conversao = String(data.valor_conversao);
-    // Only persist linha_inicial when non-default (> 2) to keep mapeamento clean
+    const li = Number(data.linha_inicial);
+    if (li > 2) m.linha_inicial = String(li);
+  } else if (tipo === "faturamento") {
+    add("categoria");
+    add("valor_pago");
+    add("profissional");
+    const li = Number(data.linha_inicial);
+    if (li > 2) m.linha_inicial = String(li);
+  } else {
+    // despesa
+    add("categoria");
+    add("valor_pago");
     const li = Number(data.linha_inicial);
     if (li > 2) m.linha_inicial = String(li);
   }
@@ -43,7 +59,9 @@ export async function upsertFonte(
   const schema =
     tipo === "pre_consulta" ? preConsultaSchema :
     tipo === "nps"          ? npsSchema          :
-                              leadsSchema;
+    tipo === "leads"        ? leadsSchema         :
+    tipo === "faturamento"  ? faturamentoSchema   :
+                              despesaSchema;
 
   const parsed = schema.safeParse(rawData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -86,4 +104,68 @@ export async function deleteFonte(clinicaId: string, tipo: TipoFonte) {
   if (error) return { error: error.message };
   revalidatePath(`/clinicas/${clinicaId}/fontes`);
   return { ok: true };
+}
+
+// ── Teste provisório de leitura de fontes financeiras ─────────────────────────
+
+export type TesteResultadoFat =
+  | { ok: true; tipo: "faturamento"; resultado: ResultadoFaturamento }
+  | { erro: string };
+
+export type TesteResultadoDesp =
+  | { ok: true; tipo: "despesa"; resultado: ResultadoDespesa }
+  | { erro: string };
+
+export async function testarLeituraFaturamento(
+  clinicaId: string,
+  dataInicioStr: string,
+  dataFimStr: string
+): Promise<TesteResultadoFat> {
+  try {
+    const db = getSupabaseAdmin();
+    const { data: fonte } = await db
+      .from("fontes_dados")
+      .select("*")
+      .eq("clinica_id", clinicaId)
+      .eq("tipo", "faturamento")
+      .maybeSingle();
+
+    if (!fonte) return { erro: "Fonte de faturamento não configurada." };
+
+    const ini = new Date(dataInicioStr + "T00:00:00");
+    const fim = new Date(dataFimStr   + "T00:00:00");
+    if (isNaN(ini.getTime()) || isNaN(fim.getTime())) return { erro: "Datas inválidas." };
+
+    const resultado = await coletarFaturamento(fonte, ini, fim);
+    return { ok: true, tipo: "faturamento", resultado };
+  } catch (e) {
+    return { erro: e instanceof Error ? e.message : "Erro ao ler planilha." };
+  }
+}
+
+export async function testarLeituraDespesa(
+  clinicaId: string,
+  dataInicioStr: string,
+  dataFimStr: string
+): Promise<TesteResultadoDesp> {
+  try {
+    const db = getSupabaseAdmin();
+    const { data: fonte } = await db
+      .from("fontes_dados")
+      .select("*")
+      .eq("clinica_id", clinicaId)
+      .eq("tipo", "despesa")
+      .maybeSingle();
+
+    if (!fonte) return { erro: "Fonte de despesa não configurada." };
+
+    const ini = new Date(dataInicioStr + "T00:00:00");
+    const fim = new Date(dataFimStr   + "T00:00:00");
+    if (isNaN(ini.getTime()) || isNaN(fim.getTime())) return { erro: "Datas inválidas." };
+
+    const resultado = await coletarDespesa(fonte, ini, fim);
+    return { ok: true, tipo: "despesa", resultado };
+  } catch (e) {
+    return { erro: e instanceof Error ? e.message : "Erro ao ler planilha." };
+  }
 }
