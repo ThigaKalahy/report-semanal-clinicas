@@ -13,8 +13,8 @@ import { coletarFaturamento, type ResultadoFaturamento } from "@/lib/coletores/f
 import { coletarDespesa,    type ResultadoDespesa }      from "@/lib/coletores/despesa";
 import type { Json, TipoFonte } from "@/lib/supabase/types";
 
-function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record<string, string> {
-  const m: Record<string, string> = {};
+function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record<string, unknown> {
+  const m: Record<string, unknown> = {};
   const add = (key: string) => { if (data[key]) m[key] = String(data[key]); };
 
   if (tipo === "pre_consulta") {
@@ -41,12 +41,14 @@ function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record
     add("profissional");
     const li = Number(data.linha_inicial);
     if (li > 2) m.linha_inicial = String(li);
+    m.abas_mensais = (data.abas_mensais && typeof data.abas_mensais === "object") ? data.abas_mensais : {};
   } else {
     // despesa
     add("categoria");
     add("valor_pago");
     const li = Number(data.linha_inicial);
     if (li > 2) m.linha_inicial = String(li);
+    m.abas_mensais = (data.abas_mensais && typeof data.abas_mensais === "object") ? data.abas_mensais : {};
   }
   return m;
 }
@@ -66,8 +68,14 @@ export async function upsertFonte(
   const parsed = schema.safeParse(rawData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const { sheet_id, aba_nome, coluna_data, ...rest } = parsed.data;
-  const mapeamento = buildMapeamento(tipo, rest as Record<string, unknown>);
+  // Para fontes financeiras o schema usa aba_resumo (sem aba_nome fixa)
+  const data        = parsed.data as Record<string, unknown>;
+  const sheet_id    = String(data.sheet_id   ?? "");
+  const coluna_data = String(data.coluna_data ?? "");
+  const aba_nome    = (tipo === "faturamento" || tipo === "despesa")
+    ? String(data.aba_resumo ?? "")
+    : String(data.aba_nome   ?? "");
+  const mapeamento  = buildMapeamento(tipo, data);
 
   const db = getSupabaseAdmin();
   const { data: existing } = await db
@@ -81,7 +89,7 @@ export async function upsertFonte(
     sheet_id,
     aba_nome,
     coluna_data,
-    mapeamento: mapeamento as Json,
+    mapeamento: mapeamento as unknown as Json,
     ativo: true,
   };
 

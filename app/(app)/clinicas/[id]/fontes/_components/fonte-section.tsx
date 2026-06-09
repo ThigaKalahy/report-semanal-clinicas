@@ -133,22 +133,51 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                   Planilha
                 </div>
                 <ColBadge label="Sheet ID"    value={fonte.sheet_id} />
-                <ColBadge label="Aba"         value={fonte.aba_nome} />
+                {/* Para fontes financeiras aba_nome guarda o resumo (opcional) */}
+                {!isFinanceiro && <ColBadge label="Aba" value={fonte.aba_nome} />}
+                {isFinanceiro && fonte.aba_nome && (
+                  <ColBadge label="Aba resumo" value={fonte.aba_nome} />
+                )}
                 <ColBadge label="Coluna data" value={fonte.coluna_data} />
               </div>
               {(() => {
+                const raw = fonte.mapeamento as Record<string, unknown> | null;
+                const abasMensais = (raw?.abas_mensais && typeof raw.abas_mensais === "object" && !Array.isArray(raw.abas_mensais))
+                  ? raw.abas_mensais as Record<string, string>
+                  : null;
                 const m = getMapeamentoStr(fonte.mapeamento);
-                const entries = Object.entries(m);
-                if (entries.length === 0) return null;
+                const colEntries = Object.entries(m).filter(([k]) => k !== "abas_mensais");
+
                 return (
-                  <div className="p-3 bg-muted/50 rounded-md space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Mapeamento de colunas
-                    </div>
-                    {entries.map(([k, v]) => (
-                      <ColBadge key={k} label={k.replace(/_/g, " ")} value={v} />
-                    ))}
-                  </div>
+                  <>
+                    {isFinanceiro && abasMensais && Object.keys(abasMensais).length > 0 && (
+                      <div className="p-3 bg-muted/50 rounded-md space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                          Abas mensais
+                        </div>
+                        {Object.entries(abasMensais)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([anoMes, abaNome]) => (
+                            <ColBadge key={anoMes} label={anoMes} value={abaNome} />
+                          ))}
+                      </div>
+                    )}
+                    {isFinanceiro && (!abasMensais || Object.keys(abasMensais).length === 0) && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Mapa de abas mensais vazio — configure antes de coletar.
+                      </p>
+                    )}
+                    {colEntries.length > 0 && (
+                      <div className="p-3 bg-muted/50 rounded-md space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                          Mapeamento de colunas
+                        </div>
+                        {colEntries.map(([k, v]) => (
+                          <ColBadge key={k} label={k.replace(/_/g, " ")} value={v} />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 );
               })()}
               <Badge variant="secondary" className="text-xs">{label} configurado</Badge>

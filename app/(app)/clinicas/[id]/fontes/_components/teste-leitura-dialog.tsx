@@ -58,11 +58,24 @@ function GrupoTable({ title, rows }: {
   );
 }
 
+function AbasLidas({ abas }: { abas: string[] }) {
+  if (abas.length === 0) return null;
+  return (
+    <div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+      <p className="font-semibold uppercase tracking-wide">Aba{abas.length > 1 ? "s" : ""} lida{abas.length > 1 ? "s" : ""}</p>
+      {abas.map((aba) => (
+        <p key={aba} className="font-mono">{aba}</p>
+      ))}
+    </div>
+  );
+}
+
 function FaturamentoResultado({ r }: { r: ResultadoFaturamento }) {
   const categorias    = Object.entries(r.por_categoria);
   const profissionais = Object.entries(r.por_profissional);
   return (
     <div className="space-y-4">
+      <AbasLidas abas={r.abas_lidas ?? []} />
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-md bg-muted/50 p-3 space-y-0.5">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Total faturado</p>
@@ -83,6 +96,7 @@ function DespesaResultado({ r }: { r: ResultadoDespesa }) {
   const categorias = Object.entries(r.por_categoria);
   return (
     <div className="space-y-4">
+      <AbasLidas abas={r.abas_lidas ?? []} />
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-md bg-muted/50 p-3 space-y-0.5">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Total despesa</p>

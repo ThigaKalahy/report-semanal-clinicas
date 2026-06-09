@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Wifi, Loader2, Wand2, ChevronDown, ChevronUp } from "lucide-react";
+import { Wifi, Loader2, Wand2, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +104,100 @@ function detectDespesa(cols: Record<string, string>): Partial<DespesaFormValues>
   };
 }
 
+// ── Helpers para abas mensais ─────────────────────────────────────────────────
+
+function getAbasMensaisFromMapeamento(m: Json): Record<string, string> {
+  if (!m || typeof m !== "object" || Array.isArray(m)) return {};
+  const raw = (m as Record<string, unknown>).abas_mensais;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const result: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === "string") result[k] = v;
+  }
+  return result;
+}
+
+function currentAnoMes(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// ── AbasMensaisEditor ─────────────────────────────────────────────────────────
+
+interface AbasMensaisEditorProps {
+  value: Record<string, string>;
+  onChange: (v: Record<string, string>) => void;
+  sheetId: string;
+  onTestAba?: (abaNome: string) => void;
+}
+
+function AbasMensaisEditor({ value, onChange }: AbasMensaisEditorProps) {
+  const [rows, setRows] = useState<{ anoMes: string; abaNome: string }[]>(() =>
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([anoMes, abaNome]) => ({ anoMes, abaNome }))
+  );
+
+  function syncToParent(newRows: { anoMes: string; abaNome: string }[]) {
+    const rec: Record<string, string> = {};
+    for (const { anoMes, abaNome } of newRows) {
+      if (anoMes && abaNome) rec[anoMes] = abaNome;
+    }
+    onChange(rec);
+  }
+
+  function addRow() {
+    const newRows = [...rows, { anoMes: currentAnoMes(), abaNome: "" }];
+    setRows(newRows);
+    syncToParent(newRows);
+  }
+
+  function removeRow(i: number) {
+    const newRows = rows.filter((_, j) => j !== i);
+    setRows(newRows);
+    syncToParent(newRows);
+  }
+
+  function updateRow(i: number, field: "anoMes" | "abaNome", val: string) {
+    const newRows = rows.map((r, j) => (j === i ? { ...r, [field]: val } : r));
+    setRows(newRows);
+    syncToParent(newRows);
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.length === 0 && (
+        <p className="text-xs text-muted-foreground italic">Nenhuma aba configurada. Clique em &quot;Adicionar mês&quot;.</p>
+      )}
+      {rows.map((row, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <Input
+            value={row.anoMes}
+            onChange={(e) => updateRow(i, "anoMes", e.target.value)}
+            placeholder="2026-05"
+            className="font-mono text-xs w-28"
+            maxLength={7}
+          />
+          <span className="text-muted-foreground text-sm">→</span>
+          <Input
+            value={row.abaNome}
+            onChange={(e) => updateRow(i, "abaNome", e.target.value)}
+            placeholder="Maio 2026"
+            className="text-sm flex-1"
+          />
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={() => removeRow(i)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="gap-1.5 mt-1" onClick={addRow}>
+        <Plus className="h-3.5 w-3.5" />Adicionar mês
+      </Button>
+    </div>
+  );
+}
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 interface Props {
@@ -200,13 +294,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 function FormBase({
-  form, errors, onTest, isTesting,
+  form, errors, onTest, isTesting, hideAbaNome = false,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: ReturnType<typeof useForm<any>>;
   errors: Record<string, { message?: string }>;
   onTest: () => void;
   isTesting: boolean;
+  hideAbaNome?: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -220,15 +315,20 @@ function FormBase({
         </p>
         {errors.sheet_id && <p className="text-xs text-destructive">{errors.sheet_id.message}</p>}
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="aba_nome">Aba <span className="text-destructive">*</span></Label>
-          <Input id="aba_nome" {...form.register("aba_nome")} placeholder="Respostas ao formulário 1" />
-          {errors.aba_nome && <p className="text-xs text-destructive">{errors.aba_nome.message}</p>}
-        </div>
+      {hideAbaNome ? (
         <ColInput id="coluna_data" label="Data/hora" required
           {...form.register("coluna_data")} error={errors.coluna_data?.message} />
-      </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="aba_nome">Aba <span className="text-destructive">*</span></Label>
+            <Input id="aba_nome" {...form.register("aba_nome")} placeholder="Respostas ao formulário 1" />
+            {errors.aba_nome && <p className="text-xs text-destructive">{errors.aba_nome.message}</p>}
+          </div>
+          <ColInput id="coluna_data" label="Data/hora" required
+            {...form.register("coluna_data")} error={errors.coluna_data?.message} />
+        </div>
+      )}
       <Button type="button" variant="outline" size="sm" className="gap-2" onClick={onTest} disabled={isTesting}>
         {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
         {isTesting ? "Testando…" : "Testar conexão"}
@@ -552,14 +652,17 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
   const [isTesting, setIsTesting]       = useState(false);
   const [importText, setImportText]     = useState("");
   const [showImporter, setShowImporter] = useState(false);
+  const [abasMensais, setAbasMensais]   = useState<Record<string, string>>(
+    existingFonte ? getAbasMensaisFromMapeamento(existingFonte.mapeamento) : {}
+  );
   const m = existingFonte ? getMapeamento(existingFonte.mapeamento) : {};
 
   const form = useForm<FaturamentoFormValues>({
-    resolver: zodResolver(faturamentoSchema),
+    resolver: zodResolver(faturamentoSchema.omit({ abas_mensais: true })),
     defaultValues: {
-      sheet_id:      existingFonte?.sheet_id ?? "",
-      aba_nome:      existingFonte?.aba_nome ?? "",
-      coluna_data:   existingFonte?.coluna_data ?? "",
+      sheet_id:      existingFonte?.sheet_id    ?? "",
+      aba_resumo:    existingFonte?.aba_nome     ?? "",
+      coluna_data:   existingFonte?.coluna_data  ?? "",
       categoria:     m.categoria    ?? "",
       valor_pago:    m.valor_pago   ?? "",
       profissional:  m.profissional ?? "",
@@ -571,7 +674,13 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
 
   async function testConnection() {
     setIsTesting(true);
-    await testSheetConnection(form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter);
+    const primeiraAba = Object.values(abasMensais)[0];
+    if (!primeiraAba) {
+      toast.error("Adicione pelo menos uma aba mensal para testar a conexão.");
+      setIsTesting(false);
+      return;
+    }
+    await testSheetConnection(form.getValues("sheet_id"), primeiraAba, setImportText, setShowImporter);
     setIsTesting(false);
   }
 
@@ -588,7 +697,7 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
 
   async function onSubmit(data: FaturamentoFormValues) {
     setIsSubmitting(true);
-    const result = await upsertFonte(clinicaId, "faturamento", data);
+    const result = await upsertFonte(clinicaId, "faturamento", { ...data, abas_mensais: abasMensais });
     setIsSubmitting(false);
     if (result.error) { toast.error(result.error); }
     else { toast.success("Fonte configurada."); onSuccess(); }
@@ -597,8 +706,28 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
       <FormBase form={form} errors={errors as Record<string, { message?: string }>}
-        onTest={testConnection} isTesting={isTesting} />
+        onTest={testConnection} isTesting={isTesting} hideAbaNome />
       <Separator />
+
+      {/* Abas mensais */}
+      <div className="space-y-3">
+        <SectionLabel>Abas por mês</SectionLabel>
+        <p className="text-xs text-muted-foreground">
+          Para cada mês do período, informe o nome exato da aba na planilha.
+          Formato: <code className="bg-muted px-1 rounded text-[11px]">AAAA-MM</code> → nome da aba.
+        </p>
+        <AbasMensaisEditor value={abasMensais} onChange={setAbasMensais} sheetId={form.watch("sheet_id")} />
+        <div className="space-y-1.5 pt-1">
+          <Label htmlFor="fat_aba_resumo">
+            Aba &quot;Resumo&quot;
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(opcional — para uso futuro)</span>
+          </Label>
+          <Input id="fat_aba_resumo" {...form.register("aba_resumo")} placeholder="Resumo" className="max-w-56" />
+        </div>
+      </div>
+      <Separator />
+
+      {/* Mapeamento de colunas */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <SectionLabel>Mapeamento de colunas</SectionLabel>
@@ -612,9 +741,9 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
             onApply={applyDetection} onClose={() => setShowImporter(false)} />
         )}
         <div className="grid grid-cols-2 gap-4">
-          <ColInput id="fat_categoria"   label="Categoria" required {...form.register("categoria")}   error={errors.categoria?.message} />
-          <ColInput id="fat_valor_pago"  label="Valor pago" required {...form.register("valor_pago")}  error={errors.valor_pago?.message} />
-          <ColInput id="fat_profissional" label="Profissional" {...form.register("profissional")} error={errors.profissional?.message} />
+          <ColInput id="fat_categoria"    label="Categoria"    required {...form.register("categoria")}    error={errors.categoria?.message} />
+          <ColInput id="fat_valor_pago"   label="Valor pago"   required {...form.register("valor_pago")}   error={errors.valor_pago?.message} />
+          <ColInput id="fat_profissional" label="Profissional"          {...form.register("profissional")} error={errors.profissional?.message} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="fat_linha_inicial">
@@ -642,13 +771,16 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
   const [isTesting, setIsTesting]       = useState(false);
   const [importText, setImportText]     = useState("");
   const [showImporter, setShowImporter] = useState(false);
+  const [abasMensais, setAbasMensais]   = useState<Record<string, string>>(
+    existingFonte ? getAbasMensaisFromMapeamento(existingFonte.mapeamento) : {}
+  );
   const m = existingFonte ? getMapeamento(existingFonte.mapeamento) : {};
 
   const form = useForm<DespesaFormValues>({
-    resolver: zodResolver(despesaSchema),
+    resolver: zodResolver(despesaSchema.omit({ abas_mensais: true })),
     defaultValues: {
-      sheet_id:      existingFonte?.sheet_id ?? "",
-      aba_nome:      existingFonte?.aba_nome ?? "",
+      sheet_id:      existingFonte?.sheet_id   ?? "",
+      aba_resumo:    existingFonte?.aba_nome    ?? "",
       coluna_data:   existingFonte?.coluna_data ?? "",
       categoria:     m.categoria  ?? "",
       valor_pago:    m.valor_pago ?? "",
@@ -660,7 +792,13 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
 
   async function testConnection() {
     setIsTesting(true);
-    await testSheetConnection(form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter);
+    const primeiraAba = Object.values(abasMensais)[0];
+    if (!primeiraAba) {
+      toast.error("Adicione pelo menos uma aba mensal para testar a conexão.");
+      setIsTesting(false);
+      return;
+    }
+    await testSheetConnection(form.getValues("sheet_id"), primeiraAba, setImportText, setShowImporter);
     setIsTesting(false);
   }
 
@@ -677,7 +815,7 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
 
   async function onSubmit(data: DespesaFormValues) {
     setIsSubmitting(true);
-    const result = await upsertFonte(clinicaId, "despesa", data);
+    const result = await upsertFonte(clinicaId, "despesa", { ...data, abas_mensais: abasMensais });
     setIsSubmitting(false);
     if (result.error) { toast.error(result.error); }
     else { toast.success("Fonte configurada."); onSuccess(); }
@@ -686,8 +824,28 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
       <FormBase form={form} errors={errors as Record<string, { message?: string }>}
-        onTest={testConnection} isTesting={isTesting} />
+        onTest={testConnection} isTesting={isTesting} hideAbaNome />
       <Separator />
+
+      {/* Abas mensais */}
+      <div className="space-y-3">
+        <SectionLabel>Abas por mês</SectionLabel>
+        <p className="text-xs text-muted-foreground">
+          Para cada mês do período, informe o nome exato da aba na planilha.
+          Formato: <code className="bg-muted px-1 rounded text-[11px]">AAAA-MM</code> → nome da aba.
+        </p>
+        <AbasMensaisEditor value={abasMensais} onChange={setAbasMensais} sheetId={form.watch("sheet_id")} />
+        <div className="space-y-1.5 pt-1">
+          <Label htmlFor="desp_aba_resumo">
+            Aba &quot;Resumo&quot;
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(opcional — para uso futuro)</span>
+          </Label>
+          <Input id="desp_aba_resumo" {...form.register("aba_resumo")} placeholder="Resumo" className="max-w-56" />
+        </div>
+      </div>
+      <Separator />
+
+      {/* Mapeamento de colunas */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <SectionLabel>Mapeamento de colunas</SectionLabel>
@@ -701,7 +859,7 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
             onApply={applyDetection} onClose={() => setShowImporter(false)} />
         )}
         <div className="grid grid-cols-2 gap-4">
-          <ColInput id="desp_categoria"  label="Categoria" required {...form.register("categoria")}  error={errors.categoria?.message} />
+          <ColInput id="desp_categoria"  label="Categoria"  required {...form.register("categoria")}  error={errors.categoria?.message} />
           <ColInput id="desp_valor_pago" label="Valor pago" required {...form.register("valor_pago")} error={errors.valor_pago?.message} />
         </div>
         <div className="space-y-1.5">

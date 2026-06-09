@@ -16,6 +16,14 @@ const base = z.object({
   coluna_data: requiredCol,
 });
 
+// Base para fontes financeiras: sem aba_nome fixa; usa mapa por mês + resumo opcional
+const baseFinancial = z.object({
+  sheet_id:    z.string().min(1, "Obrigatório"),
+  aba_resumo:  z.string(), // nome da aba de resumo anual (opcional; armazenado em aba_nome no DB)
+  abas_mensais: z.record(z.string(), z.string()), // "AAAA-MM" → nome exato da aba
+  coluna_data: requiredCol,
+});
+
 export const preConsultaSchema = base.extend({
   motivo: optionalCol,
   origem: optionalCol,
@@ -40,14 +48,14 @@ export const leadsSchema = base.extend({
   linha_inicial:   z.number().int().min(1),
 });
 
-export const faturamentoSchema = base.extend({
+export const faturamentoSchema = baseFinancial.extend({
   categoria:     requiredCol,
   valor_pago:    requiredCol,
   profissional:  optionalCol,
   linha_inicial: z.number().int().min(1),
 });
 
-export const despesaSchema = base.extend({
+export const despesaSchema = baseFinancial.extend({
   categoria:     requiredCol,
   valor_pago:    requiredCol,
   linha_inicial: z.number().int().min(1),
@@ -56,5 +64,6 @@ export const despesaSchema = base.extend({
 export type PreConsultaFormValues = z.infer<typeof preConsultaSchema>;
 export type NpsFormValues         = z.infer<typeof npsSchema>;
 export type LeadsFormValues       = z.infer<typeof leadsSchema>;
-export type FaturamentoFormValues = z.infer<typeof faturamentoSchema>;
-export type DespesaFormValues     = z.infer<typeof despesaSchema>;
+// abas_mensais é gerenciado como estado local no form; omitido do tipo react-hook-form
+export type FaturamentoFormValues = Omit<z.infer<typeof faturamentoSchema>, "abas_mensais">;
+export type DespesaFormValues     = Omit<z.infer<typeof despesaSchema>,     "abas_mensais">;
