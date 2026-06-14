@@ -1,6 +1,6 @@
 import { readSheetRange } from "@/lib/google/sheets";
 import type { FonteDados, Json } from "@/lib/supabase/types";
-import type { GrupoFinanceiro } from "./faturamento";
+import type { GrupoFinanceiro, DiagnosticoLinha } from "./faturamento";
 
 export type { GrupoFinanceiro };
 
@@ -9,6 +9,15 @@ export interface ResultadoDespesa {
   qtd_lancamentos: number;
   por_categoria: Record<string, GrupoFinanceiro>;
   abas_lidas: string[];
+  diagnostico?: {
+    debug_cols: {
+      data:       { letra: string; idx: number };
+      valor_pago: { letra: string; idx: number };
+      categoria:  { letra: string; idx: number };
+    };
+    cabecalho_api: string[];
+    primeiras_linhas: DiagnosticoLinha[];
+  };
 }
 
 function getMapeamento(m: Json): Record<string, string> {
@@ -149,22 +158,30 @@ export async function coletarDespesa(
   const iniMs = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate()).getTime();
   const fimMs = new Date(dataFim.getFullYear(),    dataFim.getMonth(),    dataFim.getDate()).getTime();
 
-  console.log("[despesa] cols — data:", dataIdx, "categoria:", categoriaIdx, "valor_pago:", valorIdx, "| linha_inicial:", linhaInicial);
+  const debugCols = {
+    data:       { letra: fonte.coluna_data       ?? "?", idx: dataIdx      },
+    valor_pago: { letra: mapeamento.valor_pago   ?? "?", idx: valorIdx     },
+    categoria:  { letra: mapeamento.categoria    ?? "?", idx: categoriaIdx },
+  };
 
   const categorias: Array<{ key: string; valor: number }> = [];
   let total_despesa   = 0;
   let qtd_lancamentos = 0;
   const abas_lidas: string[] = [];
 
-  for (const { anoMes, abaNome } of abasResolvidas) {
-    const range = `${abaNome}!A:Z`;
-    console.log(`[despesa] anoMes=${anoMes} → aba="${abaNome}" range=${range}`);
+  let diagCabecalhoApi: string[] = [];
+  const diagPrimeiras: DiagnosticoLinha[] = [];
 
-    const rows     = await readSheetRange(fonte.sheet_id, range);
-    const dataRows = rows.slice(linhaInicial - 1);
+  for (const { abaNome } of abasResolvidas) {
+    const rows = await readSheetRange(fonte.sheet_id, `${abaNome}!A:Z`);
     abas_lidas.push(abaNome);
 
-    console.log(`[despesa] aba="${abaNome}" | total rows:`, rows.length, "| dataRows:", dataRows.length);
+    if (rows.length === 0) continue;
+
+    const cabecalho = (rows[0] ?? []).map(String);
+    if (diagCabecalhoApi.length === 0) diagCabecalhoApi = cabecalho;
+
+    const dataRows = rows.slice(linhaInicial - 1);
 
     dataRows.forEach((row, i) => {
       const dateRaw  = String(row[dataIdx]  ?? "");
@@ -172,9 +189,23 @@ export async function coletarDespesa(
       const date     = parseSheetDate(dateRaw);
       const valor    = valorIdx >= 0 ? parseValorBR(valorRaw) : 0;
 
-      if (i < 3) {
-        const inRange = date ? date.getTime() >= iniMs && date.getTime() <= fimMs : false;
-        console.log(`[despesa] aba="${abaNome}" row ${linhaInicial + i}: date="${dateRaw}" → ${date?.toISOString() ?? "null"} | valor="${valorRaw}" → ${valor} | inRange=${inRange}`);
+      if (i < 5) {
+        const catRaw  = String(row[categoriaIdx] ?? "");
+        const t       = date ? date.getTime() : 0;
+        const inRange = date ? (t >= iniMs && t <= fimMs) : false;
+        const motivo  = !date      ? "data não reconhecida"
+                      : !inRange   ? `fora do período (${date.toLocaleDateString("pt-BR")})`
+                      : valor <= 0 ? `valor inválido (raw: "${valorRaw}")`
+                      : null;
+        diagPrimeiras.push({
+          planilha_linha:  linhaInicial + i,
+          date_raw:        dateRaw,
+          date_parsed:     date ? date.toLocaleDateString("pt-BR") : null,
+          valor_raw:       valorRaw,
+          valor_parsed:    valor,
+          categoria_raw:   catRaw,
+          motivo_rejeicao: motivo,
+        });
       }
 
       if (!date) return;
@@ -189,12 +220,15 @@ export async function coletarDespesa(
     });
   }
 
-  console.log("[despesa] total_despesa:", total_despesa, "| qtd_lancamentos:", qtd_lancamentos, "| abas_lidas:", abas_lidas);
-
   return {
     total_despesa:   Math.round(total_despesa * 100) / 100,
     qtd_lancamentos,
-    por_categoria: buildGrupo(categorias, total_despesa),
+    por_categoria:   buildGrupo(categorias, total_despesa),
     abas_lidas,
+    diagnostico: {
+      debug_cols:       debugCols,
+      cabecalho_api:    diagCabecalhoApi,
+      primeiras_linhas: diagPrimeiras,
+    },
   };
 }

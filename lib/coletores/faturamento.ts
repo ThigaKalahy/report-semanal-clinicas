@@ -6,12 +6,37 @@ export interface GrupoFinanceiro {
   pct_do_total: number;
 }
 
+export interface DiagnosticoLinha {
+  planilha_linha: number;
+  date_raw: string;
+  date_parsed: string | null;
+  valor_raw: string;
+  valor_parsed: number;
+  categoria_raw: string;
+  profissional_raw?: string;
+  motivo_rejeicao: string | null;
+}
+
 export interface ResultadoFaturamento {
   total_faturado: number;
   qtd_lancamentos: number;
   por_categoria: Record<string, GrupoFinanceiro>;
   por_profissional: Record<string, GrupoFinanceiro>;
   abas_lidas: string[];
+  diagnostico?: {
+    total_rows_api: number;
+    linha_inicial: number;
+    data_rows: number;
+    primeiras_linhas: DiagnosticoLinha[];
+    aviso?: string;
+    debug_cols: {
+      data:         { letra: string; idx: number };
+      valor_pago:   { letra: string; idx: number };
+      categoria:    { letra: string; idx: number };
+      profissional: { letra: string; idx: number };
+    };
+    cabecalho_api: string[];
+  };
 }
 
 function getMapeamento(m: Json): Record<string, string> {
@@ -161,7 +186,12 @@ export async function coletarFaturamento(
   const iniMs = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate()).getTime();
   const fimMs = new Date(dataFim.getFullYear(),    dataFim.getMonth(),    dataFim.getDate()).getTime();
 
-  console.log("[faturamento] cols — data:", dataIdx, "categoria:", categoriaIdx, "valor_pago:", valorIdx, "profissional:", profissionalIdx, "| linha_inicial:", linhaInicial);
+  const debugCols = {
+    data:         { letra: fonte.coluna_data        ?? "?", idx: dataIdx         },
+    valor_pago:   { letra: mapeamento.valor_pago    ?? "?", idx: valorIdx        },
+    categoria:    { letra: mapeamento.categoria     ?? "?", idx: categoriaIdx    },
+    profissional: { letra: mapeamento.profissional  ?? "-", idx: profissionalIdx },
+  };
 
   const categorias:    Array<{ key: string; valor: number }> = [];
   const profissionais: Array<{ key: string; valor: number }> = [];
@@ -169,30 +199,58 @@ export async function coletarFaturamento(
   let qtd_lancamentos = 0;
   const abas_lidas: string[] = [];
 
-  for (const { anoMes, abaNome } of abasResolvidas) {
-    const range = `${abaNome}!A:Z`;
-    console.log(`[faturamento] anoMes=${anoMes} → aba="${abaNome}" range=${range}`);
+  let diagTotalRowsApi = 0;
+  let diagDataRows     = 0;
+  let diagCabecalhoApi: string[] = [];
+  const diagPrimeiras: DiagnosticoLinha[] = [];
 
-    const rows     = await readSheetRange(fonte.sheet_id, range);
-    const dataRows = rows.slice(linhaInicial - 1);
+  for (const { abaNome } of abasResolvidas) {
+    const rows = await readSheetRange(fonte.sheet_id, `${abaNome}!A:Z`);
     abas_lidas.push(abaNome);
 
-    console.log(`[faturamento] aba="${abaNome}" | total rows:`, rows.length, "| dataRows:", dataRows.length);
+    if (rows.length === 0) {
+      diagTotalRowsApi = 0;
+      continue;
+    }
+
+    const cabecalho = (rows[0] ?? []).map(String);
+    if (diagCabecalhoApi.length === 0) diagCabecalhoApi = cabecalho;
+
+    const dataRows   = rows.slice(linhaInicial - 1);
+    diagTotalRowsApi = rows.length;
+    diagDataRows     = dataRows.length;
 
     dataRows.forEach((row, i) => {
-      const dateRaw  = String(row[dataIdx]   ?? "");
-      const valorRaw = String(row[valorIdx]  ?? "");
+      const dateRaw  = String(row[dataIdx]  ?? "");
+      const valorRaw = String(row[valorIdx] ?? "");
       const date     = parseSheetDate(dateRaw);
       const valor    = valorIdx >= 0 ? parseValorBR(valorRaw) : 0;
 
-      if (i < 3) {
-        const inRange = date ? date.getTime() >= iniMs && date.getTime() <= fimMs : false;
-        console.log(`[faturamento] aba="${abaNome}" row ${linhaInicial + i}: date="${dateRaw}" → ${date?.toISOString() ?? "null"} | valor="${valorRaw}" → ${valor} | inRange=${inRange}`);
+      if (i < 5) {
+        const catRaw  = String(row[categoriaIdx]    ?? "");
+        const profRaw = String(row[profissionalIdx] ?? "");
+        const t       = date ? date.getTime() : 0;
+        const inRange = date ? (t >= iniMs && t <= fimMs) : false;
+        const motivo  = !date      ? "data não reconhecida"
+                      : !inRange   ? `fora do período (${date.toLocaleDateString("pt-BR")})`
+                      : valor <= 0 ? `valor inválido (raw: "${valorRaw}")`
+                      : null;
+        diagPrimeiras.push({
+          planilha_linha:   linhaInicial + i,
+          date_raw:         dateRaw,
+          date_parsed:      date ? date.toLocaleDateString("pt-BR") : null,
+          valor_raw:        valorRaw,
+          valor_parsed:     valor,
+          categoria_raw:    catRaw,
+          profissional_raw: profRaw,
+          motivo_rejeicao:  motivo,
+        });
       }
 
       if (!date) return;
       const t = date.getTime();
-      if (t < iniMs || t > fimMs || valor <= 0) return;
+      if (t < iniMs || t > fimMs) return;
+      if (valor <= 0) return;
 
       total_faturado += valor;
       qtd_lancamentos++;
@@ -204,7 +262,16 @@ export async function coletarFaturamento(
     });
   }
 
-  console.log("[faturamento] total_faturado:", total_faturado, "| qtd_lancamentos:", qtd_lancamentos, "| abas_lidas:", abas_lidas);
+  // Monta aviso de diagnóstico para exibir na UI quando não há resultados
+  let avisoUi: string | undefined;
+  if (qtd_lancamentos === 0 && diagTotalRowsApi > 0 && diagPrimeiras.length > 0) {
+    const linhas = diagPrimeiras.map((l) =>
+      `Linha ${l.planilha_linha}: data="${l.date_raw}"→${l.date_parsed ?? "INVÁLIDA"} | valor="${l.valor_raw}"→${l.valor_parsed} | ${l.motivo_rejeicao ?? "OK"}`
+    ).join("\n");
+    avisoUi = `Nenhum lançamento passou nos filtros (${diagDataRows} linhas de dados lidas).\n\n${linhas}`;
+  } else if (qtd_lancamentos === 0 && diagTotalRowsApi === 0) {
+    avisoUi = "API retornou 0 linhas — verifique se o nome da aba está correto ou se a planilha tem dados.";
+  }
 
   return {
     total_faturado:   Math.round(total_faturado * 100) / 100,
@@ -212,5 +279,14 @@ export async function coletarFaturamento(
     por_categoria:    buildGrupo(categorias,    total_faturado),
     por_profissional: buildGrupo(profissionais, total_faturado),
     abas_lidas,
+    diagnostico: {
+      total_rows_api:   diagTotalRowsApi,
+      linha_inicial:    linhaInicial,
+      data_rows:        diagDataRows,
+      primeiras_linhas: diagPrimeiras,
+      aviso:            avisoUi,
+      debug_cols:       debugCols,
+      cabecalho_api:    diagCabecalhoApi,
+    },
   };
 }
