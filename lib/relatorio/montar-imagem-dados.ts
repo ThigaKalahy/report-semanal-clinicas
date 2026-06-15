@@ -127,6 +127,7 @@ export function montarDadosImagem(
   leads?: ResultadoLeads | null,
   realizadoFaturamento?: number | null,
   porCategoriaFaturamento?: Record<string, GrupoFinanceiro> | null,
+  porProfissionalFaturamento?: Record<string, GrupoFinanceiro> | null,
 ): RelatorioImagemData {
   void pre; // disponível para expansão futura
 
@@ -134,6 +135,8 @@ export function montarDadosImagem(
   const npsGoogle   = buildNpsGoogle(nps, google, metas);
   const comercial   = buildComercial(leads);
   const destaques   = buildDestaquesCategoria(porCategoriaFaturamento);
+
+  const temSuplementar = porCategoriaFaturamento != null || porProfissionalFaturamento != null;
 
   return {
     cabecalho: {
@@ -149,5 +152,9 @@ export function montarDadosImagem(
     destaques,
     alertas: [],
     acoes:   [],
+    faturamento_suplementar: temSuplementar ? {
+      por_categoria:    porCategoriaFaturamento    ?? undefined,
+      por_profissional: porProfissionalFaturamento ?? undefined,
+    } : undefined,
   };
 }

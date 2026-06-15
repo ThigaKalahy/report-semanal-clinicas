@@ -48,6 +48,11 @@ export interface RodapeInfo {
   mes_ano: string;  // ex: "Maio/2026"
 }
 
+export interface FaturamentoSuplementar {
+  por_categoria?:    Record<string, { total: number; pct_do_total: number }>;
+  por_profissional?: Record<string, { total: number; pct_do_total: number }>;
+}
+
 export interface RelatorioImagemData {
   cabecalho: CabecalhoInfo;
   rodape: RodapeInfo;
@@ -55,4 +60,5 @@ export interface RelatorioImagemData {
   destaques: DestaqueItem[];
   alertas: string[];
   acoes: string[];
+  faturamento_suplementar?: FaturamentoSuplementar;
 }

@@ -14,6 +14,9 @@ import { coletarFaturamento } from "@/lib/coletores/faturamento";
 import { descreverPerformance, calcularPercentualMeta } from "@/lib/metas";
 import { montarPesquisas, montarMetas } from "@/lib/relatorio/montar-whatsapp";
 import { montarDadosImagem } from "@/lib/relatorio/montar-imagem-dados";
+import { callGemini } from "@/lib/ia/gemini";
+import type { SugestaoIA } from "@/lib/ia/gemini";
+import { montarContextoIA, SYSTEM_PROMPT } from "@/lib/ia/montar-contexto";
 import type { RelatorioGeradoInsert } from "@/lib/supabase/types";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
 
@@ -276,6 +279,7 @@ export async function prepararDadosImagem(params: {
     leads,
     fatColetado?.total_faturado    ?? null,
     fatColetado?.por_categoria     ?? null,
+    fatColetado?.por_profissional  ?? null,
   );
 
   return { dados, erros };
@@ -314,4 +318,25 @@ export async function salvarRelatorioImagem(params: {
     .single();
 
   return { id: data?.id ?? "" };
+}
+
+export type ResultadoSugestaoIA =
+  | { ok: true; sugestoes: SugestaoIA }
+  | { ok: false; erro: string };
+
+export async function gerarSugestoesIA(
+  dados: RelatorioImagemData,
+): Promise<ResultadoSugestaoIA> {
+  const h = await headers();
+  if (!checkRateLimit(rateLimitKey(h), 10)) {
+    return { ok: false, erro: "Limite de requisições atingido. Aguarde 1 minuto." };
+  }
+
+  try {
+    const contexto  = montarContextoIA(dados);
+    const sugestoes = await callGemini(SYSTEM_PROMPT, contexto);
+    return { ok: true, sugestoes };
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : "Erro ao gerar sugestões com IA." };
+  }
 }

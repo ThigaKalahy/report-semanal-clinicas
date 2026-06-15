@@ -5,7 +5,7 @@ import { format, subDays, subWeeks, startOfWeek, endOfWeek } from "date-fns";
 import {
   FileText, Copy, Check, ChevronDown, ChevronUp,
   Loader2, AlertTriangle, Plus, Trash2,
-  ExternalLink, Download, Image as ImageIcon, Archive, Database,
+  ExternalLink, Download, Image as ImageIcon, Archive, Database, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  gerarRelatorioWhatsapp, prepararDadosImagem, salvarRelatorioImagem,
+  gerarRelatorioWhatsapp, prepararDadosImagem, salvarRelatorioImagem, gerarSugestoesIA,
 } from "../actions";
 import { SEPARATOR } from "@/lib/relatorio/montar-whatsapp";
 import type { Clinica, RelatorioGerado } from "@/lib/supabase/types";
@@ -381,6 +381,27 @@ function FormImagem({ dados, onChange }: {
 }) {
   const { visaoGeral, destaques, alertas, acoes } = dados;
   const fat = visaoGeral.faturamento, ng = visaoGeral.npsGoogle, com = visaoGeral.comercial;
+  const [loadingIA, setLoadingIA] = useState(false);
+  const [erroIA,    setErroIA]    = useState<string | null>(null);
+  const [iaUsada,   setIaUsada]   = useState(false);
+
+  async function handleIA() {
+    setLoadingIA(true);
+    setErroIA(null);
+    try {
+      const res = await gerarSugestoesIA(dados);
+      if (!res.ok) {
+        setErroIA(res.erro);
+        return;
+      }
+      onChange({ ...dados, destaques: res.sugestoes.destaques, alertas: res.sugestoes.alertas, acoes: res.sugestoes.acoes });
+      setIaUsada(true);
+    } catch (e) {
+      setErroIA(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setLoadingIA(false);
+    }
+  }
 
   function onFatChange(patch: Partial<FaturamentoVisao>) {
     const newFat   = { ...fat, ...patch };
@@ -510,7 +531,33 @@ function FormImagem({ dados, onChange }: {
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Principais Destaques</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Principais Destaques</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleIA}
+            disabled={loadingIA}
+            className="gap-1.5 text-xs font-normal h-7 px-2.5"
+          >
+            {loadingIA
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : <Sparkles className="h-3 w-3" />}
+            {loadingIA ? "Gerando…" : "✨ Preencher com IA"}
+          </Button>
+        </div>
+        {erroIA && (
+          <p className="text-xs text-destructive flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3 shrink-0" />{erroIA}
+          </p>
+        )}
+        {iaUsada && !erroIA && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Sparkles className="h-3 w-3 shrink-0" />
+            Sugestão gerada por IA — revise antes de enviar.
+          </p>
+        )}
         <ListaDestaques items={destaques} onChange={v => onChange({ ...dados, destaques: v })} />
       </div>
       <div className="space-y-3">
