@@ -219,10 +219,30 @@ function calcPct(
   if (n === null || d === null || d === 0) return null;
   return Math.round((n / d) * 100);
 }
-function ReadOnlyPct({ value }: { value: number | null }) {
+function ReadOnlyPct({
+  value,
+  acima,
+  sufixo,
+}: {
+  value: number | null;
+  acima?: boolean;
+  sufixo?: string;
+}) {
+  if (value === null) {
+    return (
+      <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+        —
+      </div>
+    );
+  }
+  const colorCls = acima === undefined
+    ? "text-muted-foreground"
+    : acima
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-orange-500 dark:text-orange-400";
   return (
-    <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
-      {value !== null ? `${value}%` : "—"}
+    <div className={`flex h-9 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm font-medium ${colorCls}`}>
+      {`${value}%${sufixo ?? ""}`}
     </div>
   );
 }
@@ -539,11 +559,19 @@ function FormImagem({ dados, onChange }: {
           ))}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">% do período (auto, base = acumulado)</Label>
-            <ReadOnlyPct value={fat.pct_periodo} />
+            <ReadOnlyPct
+              value={fat.pct_periodo}
+              acima={fat.acima_periodo}
+              sufixo={` ${fat.acima_periodo ? "acima da meta" : "abaixo da meta"}`}
+            />
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">% da meta mensal (auto, base = acumulado)</Label>
-            <ReadOnlyPct value={fat.pct_mensal} />
+            <ReadOnlyPct
+              value={fat.pct_mensal}
+              acima={fat.acima_mensal}
+              sufixo=" da meta"
+            />
           </div>
         </div>
       </div>

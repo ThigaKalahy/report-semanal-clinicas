@@ -78,31 +78,7 @@ function CardLabel({ label }: { label: string }) {
   );
 }
 
-// ─── Status pill: diferença vs meta proporcional (+/-X%) ─────────────────────
-function StatusPill({ pct, acima }: { pct: number; acima: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        background: acima ? C.verde : C.vermelho,
-        borderRadius: 4,
-        paddingTop: 2,
-        paddingBottom: 2,
-        paddingLeft: 7,
-        paddingRight: 7,
-        fontSize: 12,
-        fontWeight: 700,
-        color: C.branco,
-      }}
-    >
-      {acima ? "+" : "-"}
-      {pct}%
-    </div>
-  );
-}
-
-// ─── Atingimento pill: realizado / meta_mensal ("X% da meta") ─────────────────
+// ─── Pill de atingimento: "X% da meta" ───────────────────────────────────────
 function AtingimentoPill({ pct, acima }: { pct: number; acima: boolean }) {
   return (
     <div
@@ -121,6 +97,29 @@ function AtingimentoPill({ pct, acima }: { pct: number; acima: boolean }) {
       }}
     >
       {pct}% da meta
+    </div>
+  );
+}
+
+// ─── Pill de meta do período: "23% abaixo da meta" / "8% acima da meta" ──────
+function MetaStatusPill({ pct, acima }: { pct: number; acima: boolean }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        background: acima ? C.verde : C.vermelho,
+        borderRadius: 4,
+        paddingTop: 2,
+        paddingBottom: 2,
+        paddingLeft: 7,
+        paddingRight: 7,
+        fontSize: 12,
+        fontWeight: 700,
+        color: C.branco,
+      }}
+    >
+      {pct}% {acima ? "acima da meta" : "abaixo da meta"}
     </div>
   );
 }
@@ -159,7 +158,7 @@ function MetaLinha({
         {pct !== null && (
           tipo === "atingimento"
             ? <AtingimentoPill pct={pct} acima={acima} />
-            : <StatusPill pct={pct} acima={acima} />
+            : <MetaStatusPill pct={pct} acima={acima} />
         )}
       </div>
     </div>

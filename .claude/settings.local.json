@@ -55,7 +55,8 @@
       "Bash(echo \"PID=$!\")",
       "Bash(echo \"EXIT:$?\")",
       "Bash(dir /b *.env* .env*)",
-      "Bash(dir /b env*)"
+      "Bash(dir /b env*)",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)"
     ],
     "additionalDirectories": [
       "c:\\Users\\thiago.silva\\Documents\\projetos\\report-semanal-clinicas\\app\\api\\relatorio-imagem"
