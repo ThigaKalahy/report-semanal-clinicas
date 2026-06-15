@@ -383,15 +383,24 @@ function FormImagem({ dados, onChange }: {
   const fat = visaoGeral.faturamento, ng = visaoGeral.npsGoogle, com = visaoGeral.comercial;
 
   function onFatChange(patch: Partial<FaturamentoVisao>) {
-    const newFat = { ...fat, ...patch };
-    const pctPeriodo = calcPct(newFat.acumulado, newFat.meta_periodo);
-    const pctMensal  = calcPct(newFat.acumulado, newFat.meta_mensal);
+    const newFat   = { ...fat, ...patch };
+    const acumVal  = parseFmtNum(newFat.acumulado);
+    const metaPVal = parseFmtNum(newFat.meta_periodo);
+    const metaMVal = parseFmtNum(newFat.meta_mensal);
+    // pct_periodo: diferença relativa vs meta proporcional (StatusPill mostra +/-X%)
+    const pctPeriodo = (acumVal !== null && metaPVal !== null && metaPVal > 0)
+      ? Math.abs(Math.round(((acumVal - metaPVal) / metaPVal) * 100))
+      : null;
+    // pct_mensal: atingimento (acumulado / meta_mensal * 100)
+    const pctMensal = (acumVal !== null && metaMVal !== null && metaMVal > 0)
+      ? Math.round((acumVal / metaMVal) * 100)
+      : null;
     onChange({ ...dados, visaoGeral: { ...visaoGeral, faturamento: {
       ...newFat,
       pct_periodo:   pctPeriodo,
-      acima_periodo: (pctPeriodo ?? 0) >= 100,
+      acima_periodo: acumVal !== null && metaPVal !== null ? acumVal >= metaPVal : false,
       pct_mensal:    pctMensal,
-      acima_mensal:  (pctMensal ?? 0) >= 100,
+      acima_mensal:  acumVal !== null && metaMVal !== null ? acumVal >= metaMVal : false,
     }}});
   }
 

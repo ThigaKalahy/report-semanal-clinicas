@@ -250,7 +250,9 @@ export async function prepararDadosImagem(params: {
     erros.push(`Google: ${(googleResult.reason as Error).message}`);
   if (metasResult.status  === "rejected")
     erros.push(`Metas: ${(metasResult.reason as Error).message}`);
-  // Erro de faturamento não exposto — degradação silenciosa para valor manual da meta
+  // Expõe erro de faturamento apenas quando a fonte está configurada (aba faltando etc.)
+  if (fonteFaturamento && fatResult.status === "rejected")
+    erros.push(`Faturamento: ${(fatResult.reason as Error).message}`);
 
   // Leads: manual prevalece; caso contrário, tenta planilha
   let leads: ResultadoLeads | null = null;
@@ -272,7 +274,8 @@ export async function prepararDadosImagem(params: {
     dataInicio,
     dataFim,
     leads,
-    fatColetado?.total_faturado ?? null,
+    fatColetado?.total_faturado    ?? null,
+    fatColetado?.por_categoria     ?? null,
   );
 
   return { dados, erros };

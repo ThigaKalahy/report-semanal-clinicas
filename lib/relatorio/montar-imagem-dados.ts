@@ -6,11 +6,13 @@ import type { ResultadoNPS } from "@/lib/coletores/nps";
 import type { ResultadoGoogle } from "@/lib/coletores/google-places";
 import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
+import type { GrupoFinanceiro } from "@/lib/coletores/faturamento";
 import type {
   RelatorioImagemData,
   FaturamentoVisao,
   NpsGoogleVisao,
   ComercialVisao,
+  DestaqueItem,
 } from "./imagem-tipos";
 
 function fmtMoeda(v: number): string {
@@ -91,6 +93,18 @@ function buildNpsGoogle(
   };
 }
 
+function buildDestaquesCategoria(
+  porCategoria: Record<string, GrupoFinanceiro> | null | undefined
+): DestaqueItem[] {
+  if (!porCategoria) return [];
+  const entries = Object.entries(porCategoria);
+  if (entries.length === 0) return [];
+  const [nome, grupo] = entries[0];
+  // só sugere destaque se a categoria tem pelo menos 20% do faturamento
+  if (!nome || grupo.pct_do_total < 20) return [];
+  return [{ tipo: "financeiro", texto: `${nome}: ${grupo.pct_do_total.toFixed(0)}% do faturamento` }];
+}
+
 function buildComercial(leads: ResultadoLeads | null | undefined): ComercialVisao {
   return {
     conversao_leads: (leads && leads.taxa_conversao !== null)
@@ -112,12 +126,14 @@ export function montarDadosImagem(
   fim: Date,
   leads?: ResultadoLeads | null,
   realizadoFaturamento?: number | null,
+  porCategoriaFaturamento?: Record<string, GrupoFinanceiro> | null,
 ): RelatorioImagemData {
   void pre; // disponível para expansão futura
 
   const faturamento = buildFaturamento(metas, realizadoFaturamento);
   const npsGoogle   = buildNpsGoogle(nps, google, metas);
   const comercial   = buildComercial(leads);
+  const destaques   = buildDestaquesCategoria(porCategoriaFaturamento);
 
   return {
     cabecalho: {
@@ -130,8 +146,8 @@ export function montarDadosImagem(
       mes_ano: fmtMesAno(fim),
     },
     visaoGeral: { faturamento, npsGoogle, comercial },
-    destaques: [],
-    alertas:   [],
-    acoes:     [],
+    destaques,
+    alertas: [],
+    acoes:   [],
   };
 }
