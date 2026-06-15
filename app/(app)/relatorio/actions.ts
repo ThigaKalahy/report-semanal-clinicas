@@ -54,8 +54,9 @@ export async function gerarRelatorioWhatsapp(
 
   const [iniY, iniM, iniD] = ini.split("-").map(Number);
   const [fimY, fimM, fimD] = fim.split("-").map(Number);
-  const dataInicio = new Date(iniY, iniM - 1, iniD);
-  const dataFim    = new Date(fimY, fimM - 1, fimD);
+  const dataInicio    = new Date(iniY, iniM - 1, iniD);
+  const dataFim       = new Date(fimY, fimM - 1, fimD);
+  const primeroDiaMes = new Date(fimY, fimM - 1, 1); // dia 01 do mês da data_fim
 
   const { data: clinica } = await db
     .from("clinicas")
@@ -151,9 +152,9 @@ export async function gerarRelatorioWhatsapp(
 
     let metas = metasResult;
 
-    // Se há planilha de faturamento, substitui o realizado da meta de faturamento
+    // Se há planilha de faturamento, substitui o realizado da meta usando o ACUMULADO do mês
     if (fonteFaturamento) {
-      const fatResult = await coletarFaturamento(fonteFaturamento, dataInicio, dataFim).catch(() => null);
+      const fatResult = await coletarFaturamento(fonteFaturamento, primeroDiaMes, dataFim).catch(() => null);
       if (fatResult != null) {
         metas = metas.map((m) => {
           if (!m.tipo_nome.toLowerCase().includes("faturamento")) return m;
@@ -199,8 +200,9 @@ export async function prepararDadosImagem(params: {
 
   const [iniY, iniM, iniD] = ini.split("-").map(Number);
   const [fimY, fimM, fimD] = fim.split("-").map(Number);
-  const dataInicio = new Date(iniY, iniM - 1, iniD);
-  const dataFim    = new Date(fimY, fimM - 1, fimD);
+  const dataInicio    = new Date(iniY, iniM - 1, iniD);
+  const dataFim       = new Date(fimY, fimM - 1, fimD);
+  const primeroDiaMes = new Date(fimY, fimM - 1, 1); // dia 01 do mês da data_fim → acumulado
 
   const { data: clinica } = await db
     .from("clinicas")
@@ -222,28 +224,33 @@ export async function prepararDadosImagem(params: {
   const fonteLead        = fontes?.find((f) => f.tipo === "leads")        ?? null;
   const fonteFaturamento = fontes?.find((f) => f.tipo === "faturamento")  ?? null;
 
-  const [preResult, npsResult, googleResult, metasResult, fatResult] = await Promise.allSettled([
-    fontePre
-      ? coletarPreConsulta(fontePre, dataInicio, dataFim)
-      : Promise.reject(new Error("Fonte Pré-Consulta não configurada")),
-    fonteNps
-      ? coletarNPS(fonteNps, dataInicio, dataFim)
-      : Promise.reject(new Error("Fonte NPS não configurada")),
-    clinica.google_place_id
-      ? coletarAvaliacoesGoogle(clinica.google_place_id, dataInicio, dataFim)
-      : Promise.reject(new Error("Google Place ID não configurado")),
-    coletarMetas(clinicaId, dataFim),
-    fonteFaturamento
-      ? coletarFaturamento(fonteFaturamento, dataInicio, dataFim)
-      : Promise.reject(new Error("Fonte de faturamento não configurada")),
-  ]);
+  // Duas chamadas de faturamento em paralelo: filtro (período selecionado) e acumulado (mês inteiro até data_fim)
+  const [preResult, npsResult, googleResult, metasResult, fatFiltroResult, fatAcumResult] =
+    await Promise.allSettled([
+      fontePre
+        ? coletarPreConsulta(fontePre, dataInicio, dataFim)
+        : Promise.reject(new Error("Fonte Pré-Consulta não configurada")),
+      fonteNps
+        ? coletarNPS(fonteNps, dataInicio, dataFim)
+        : Promise.reject(new Error("Fonte NPS não configurada")),
+      clinica.google_place_id
+        ? coletarAvaliacoesGoogle(clinica.google_place_id, dataInicio, dataFim)
+        : Promise.reject(new Error("Google Place ID não configurado")),
+      coletarMetas(clinicaId, dataFim),
+      fonteFaturamento
+        ? coletarFaturamento(fonteFaturamento, dataInicio, dataFim)          // filtro: período selecionado
+        : Promise.reject(new Error("Fonte de faturamento não configurada")),
+      fonteFaturamento
+        ? coletarFaturamento(fonteFaturamento, primeroDiaMes, dataFim)       // acumulado: dia 01 → data_fim
+        : Promise.reject(new Error("Fonte de faturamento não configurada")),
+    ]);
 
-  const pre    = preResult.status    === "fulfilled" ? preResult.value    : null;
-  const nps    = npsResult.status    === "fulfilled" ? npsResult.value    : null;
-  const google = googleResult.status === "fulfilled" ? googleResult.value : null;
-  const metas  = metasResult.status  === "fulfilled" ? metasResult.value  : [];
-  // Faturamento da planilha: null se fonte não configurada ou erro de leitura (sem expor erro ao usuário)
-  const fatColetado = fatResult.status === "fulfilled" ? fatResult.value : null;
+  const pre       = preResult.status    === "fulfilled" ? preResult.value    : null;
+  const nps       = npsResult.status    === "fulfilled" ? npsResult.value    : null;
+  const google    = googleResult.status === "fulfilled" ? googleResult.value : null;
+  const metas     = metasResult.status  === "fulfilled" ? metasResult.value  : [];
+  const fatFiltro = fatFiltroResult.status === "fulfilled" ? fatFiltroResult.value : null;
+  const fatAcum   = fatAcumResult.status   === "fulfilled" ? fatAcumResult.value   : null;
 
   if (preResult.status    === "rejected")
     erros.push(`Pré-Consulta: ${(preResult.reason as Error).message}`);
@@ -254,8 +261,8 @@ export async function prepararDadosImagem(params: {
   if (metasResult.status  === "rejected")
     erros.push(`Metas: ${(metasResult.reason as Error).message}`);
   // Expõe erro de faturamento apenas quando a fonte está configurada (aba faltando etc.)
-  if (fonteFaturamento && fatResult.status === "rejected")
-    erros.push(`Faturamento: ${(fatResult.reason as Error).message}`);
+  if (fonteFaturamento && fatFiltroResult.status === "rejected")
+    erros.push(`Faturamento: ${(fatFiltroResult.reason as Error).message}`);
 
   // Leads: manual prevalece; caso contrário, tenta planilha
   let leads: ResultadoLeads | null = null;
@@ -277,9 +284,10 @@ export async function prepararDadosImagem(params: {
     dataInicio,
     dataFim,
     leads,
-    fatColetado?.total_faturado    ?? null,
-    fatColetado?.por_categoria     ?? null,
-    fatColetado?.por_profissional  ?? null,
+    fatFiltro?.total_faturado    ?? null,   // realizado_filtro: período selecionado
+    fatAcum?.total_faturado      ?? null,   // realizadoAcumulado: dia 01 → data_fim
+    fatFiltro?.por_categoria     ?? null,
+    fatFiltro?.por_profissional  ?? null,
   );
 
   return { dados, erros };

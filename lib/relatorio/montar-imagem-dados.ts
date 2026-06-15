@@ -30,31 +30,35 @@ function fmtMesAno(d: Date): string {
 
 function buildFaturamento(
   metas: ResultadoMeta[],
-  realizadoFaturamento?: number | null
+  realizadoFiltro?: number | null,    // total do período selecionado (ex: semana)
+  realizadoAcumulado?: number | null, // total do dia 01 até data_fim (base dos %)
 ): FaturamentoVisao {
   const fat = metas.find(
     (m) => m.tipo_nome.toLowerCase().includes("faturamento")
   );
 
+  // Base para cálculo de %: acumulado do mês quando disponível, senão filtro, senão realizado da meta
+  const baseCalculo = realizadoAcumulado ?? realizadoFiltro ?? fat?.realizado ?? null;
+
   if (!fat) {
     return {
-      is_media:                false,
-      acumulado:               "N/A",
-      acumulado_from_planilha: false,
-      meta_periodo:            "N/A",
-      pct_periodo:             null,
-      acima_periodo:           false,
-      meta_mensal:             "N/A",
-      pct_mensal:              null,
-      acima_mensal:            false,
+      is_media:                        false,
+      realizado_filtro:                realizadoFiltro    != null ? fmtMoeda(realizadoFiltro)    : undefined,
+      realizado_filtro_from_planilha:  realizadoFiltro    != null,
+      acumulado:                       realizadoAcumulado != null ? fmtMoeda(realizadoAcumulado) : "N/A",
+      acumulado_from_planilha:         realizadoAcumulado != null,
+      meta_periodo:                    "N/A",
+      pct_periodo:                     null,
+      acima_periodo:                   false,
+      meta_mensal:                     "N/A",
+      pct_mensal:                      null,
+      acima_mensal:                    false,
     };
   }
 
-  // Usa valor da planilha quando disponível; senão, usa o realizado manual da meta.
-  const fromPlanilha = realizadoFaturamento != null;
-  const realizado    = fromPlanilha ? realizadoFaturamento! : fat.realizado;
+  const realizado = baseCalculo ?? 0;
 
-  // pct_periodo: diferença relativa vs meta proporcional (badge +/-).
+  // pct_periodo: diferença relativa vs meta proporcional (badge +/-), base = acumulado.
   const diffPeriodo = fat.meta_periodo > 0
     ? Math.round(((realizado - fat.meta_periodo) / fat.meta_periodo) * 100)
     : null;
@@ -64,16 +68,21 @@ function buildFaturamento(
     ? Math.round((realizado / fat.meta_mensal) * 100)
     : null;
 
+  const temFiltro    = realizadoFiltro    != null;
+  const temAcumulado = realizadoAcumulado != null;
+
   return {
-    is_media:                fat.tipo_comportamento === "media",
-    acumulado:               fmtMoeda(realizado),
-    acumulado_from_planilha: fromPlanilha,
-    meta_periodo:            fmtMoeda(fat.meta_periodo),
-    pct_periodo:             diffPeriodo !== null ? Math.abs(diffPeriodo) : null,
-    acima_periodo:           realizado >= fat.meta_periodo,
-    meta_mensal:             fmtMoeda(fat.meta_mensal),
-    pct_mensal:              atingimento,
-    acima_mensal:            realizado >= fat.meta_mensal,
+    is_media:                       fat.tipo_comportamento === "media",
+    realizado_filtro:               temFiltro    ? fmtMoeda(realizadoFiltro!)    : undefined,
+    realizado_filtro_from_planilha: temFiltro,
+    acumulado:                      temAcumulado ? fmtMoeda(realizadoAcumulado!) : fmtMoeda(fat.realizado),
+    acumulado_from_planilha:        temAcumulado,
+    meta_periodo:                   fmtMoeda(fat.meta_periodo),
+    pct_periodo:                    diffPeriodo !== null ? Math.abs(diffPeriodo) : null,
+    acima_periodo:                  realizado >= fat.meta_periodo,
+    meta_mensal:                    fmtMoeda(fat.meta_mensal),
+    pct_mensal:                     atingimento,
+    acima_mensal:                   realizado >= fat.meta_mensal,
   };
 }
 
@@ -142,13 +151,14 @@ export function montarDadosImagem(
   ini: Date,
   fim: Date,
   leads?: ResultadoLeads | null,
-  realizadoFaturamento?: number | null,
+  realizadoFiltro?: number | null,       // total do período selecionado (semana/filtro)
+  realizadoAcumulado?: number | null,    // total do dia 01 do mês até data_fim (base dos %)
   porCategoriaFaturamento?: Record<string, GrupoFinanceiro> | null,
   porProfissionalFaturamento?: Record<string, GrupoFinanceiro> | null,
 ): RelatorioImagemData {
   void pre; // disponível para expansão futura
 
-  const faturamento = buildFaturamento(metas, realizadoFaturamento);
+  const faturamento = buildFaturamento(metas, realizadoFiltro, realizadoAcumulado);
   const npsGoogle   = buildNpsGoogle(nps, google, metas, ini, fim);
   const comercial   = buildComercial(leads);
   const destaques   = buildDestaquesCategoria(porCategoriaFaturamento);

@@ -7,13 +7,17 @@ export interface DestaqueItem {
 
 export interface FaturamentoVisao {
   is_media: boolean;
+  // Faturamento do período selecionado (ex: semana 09/06→15/06) — informativo, não entra nos %
+  realizado_filtro?: string;
+  realizado_filtro_from_planilha?: boolean;
+  // Acumulado do mês (dia 01 até data_fim) — base de todos os cálculos de %
   acumulado: string;
-  acumulado_from_planilha?: boolean;  // true quando veio do coletor de faturamento
+  acumulado_from_planilha?: boolean;
   meta_periodo: string;
-  pct_periodo: number | null;  // diferença vs meta proporcional; null = N/A
+  pct_periodo: number | null;  // diferença vs meta proporcional, base = acumulado; null = N/A
   acima_periodo: boolean;
   meta_mensal: string;
-  pct_mensal: number | null;   // atingimento % (realizado / meta_mensal * 100); null = N/A
+  pct_mensal: number | null;   // atingimento % (acumulado / meta_mensal * 100); null = N/A
   acima_mensal: boolean;
 }
 

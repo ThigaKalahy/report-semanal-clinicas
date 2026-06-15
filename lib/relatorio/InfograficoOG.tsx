@@ -255,15 +255,17 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
     rodape: { mes_ano: raw.rodape?.mes_ano ?? "" },
     visaoGeral: {
       faturamento: {
-        is_media:                f?.is_media                ?? false,
-        acumulado:               f?.acumulado               ?? "N/A",
-        acumulado_from_planilha: f?.acumulado_from_planilha ?? false,
-        meta_periodo:            f?.meta_periodo            ?? "N/A",
-        pct_periodo:             f?.pct_periodo             ?? null,
-        acima_periodo:           f?.acima_periodo           ?? false,
-        meta_mensal:             f?.meta_mensal             ?? "N/A",
-        pct_mensal:              f?.pct_mensal              ?? null,
-        acima_mensal:            f?.acima_mensal            ?? false,
+        is_media:                       f?.is_media                       ?? false,
+        realizado_filtro:               f?.realizado_filtro,
+        realizado_filtro_from_planilha: f?.realizado_filtro_from_planilha ?? false,
+        acumulado:                      f?.acumulado                      ?? "N/A",
+        acumulado_from_planilha:        f?.acumulado_from_planilha        ?? false,
+        meta_periodo:                   f?.meta_periodo                   ?? "N/A",
+        pct_periodo:                    f?.pct_periodo                    ?? null,
+        acima_periodo:                  f?.acima_periodo                  ?? false,
+        meta_mensal:                    f?.meta_mensal                    ?? "N/A",
+        pct_mensal:                     f?.pct_mensal                     ?? null,
+        acima_mensal:                   f?.acima_mensal                   ?? false,
       },
       npsGoogle: {
         // Suporta dados antigos (meta_nps_realizado era separado de respostas_nps)
@@ -364,8 +366,9 @@ export function InfograficoOG({
         const isNA = (v: string) => v === "N/A";
 
         // ── Faturamento ──────────────────────────────────────────────────────
-        const fatVisible = !isNA(fat.acumulado);
-        const showMetaPeriodo = fatVisible && !fat.is_media && !isNA(fat.meta_periodo);
+        const fatFiltroVisible = fat.realizado_filtro != null && !isNA(fat.realizado_filtro);
+        const fatVisible       = !isNA(fat.acumulado) || fatFiltroVisible;
+        const showMetaPeriodo  = fatVisible && !fat.is_media && !isNA(fat.meta_periodo) && !isNA(fat.acumulado);
 
         // ── NPS / Google ─────────────────────────────────────────────────────
         const npsVisible =
@@ -390,29 +393,43 @@ export function InfograficoOG({
               <CardBox>
                 <CardLabel label="FATURAMENTO x META" />
                 <div style={col({ gap: 10 })}>
+                  {/* Faturamento do período selecionado — linha informativa sem % */}
+                  {fatFiltroVisible && (
+                    <div style={col({ gap: 2 })}>
+                      <div style={{ display: "flex", fontSize: 11, color: C.lavanda, textTransform: "uppercase", letterSpacing: 1 }}>
+                        Faturamento no período
+                      </div>
+                      <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>
+                        {fat.realizado_filtro}
+                      </div>
+                    </div>
+                  )}
+                  {/* Acumulado do mês + metas (base dos %) */}
                   {showMetaPeriodo && (
                     <MetaLinha
-                      label="Acumulado x Meta do período"
+                      label="Acumulado no mês × Meta do período"
                       valor={`${fat.acumulado} × ${fat.meta_periodo}`}
                       pct={fat.pct_periodo}
                       acima={fat.acima_periodo}
                     />
                   )}
-                  {!showMetaPeriodo && (
+                  {!showMetaPeriodo && !isNA(fat.acumulado) && (
                     <MetaLinha
-                      label="Acumulado"
+                      label={fatFiltroVisible ? "Acumulado no mês" : "Acumulado"}
                       valor={fat.acumulado}
                       pct={null}
                       acima={false}
                     />
                   )}
-                  <MetaLinha
-                    label="Meta mensal"
-                    valor={fat.meta_mensal}
-                    pct={fat.pct_mensal}
-                    acima={fat.acima_mensal}
-                    tipo="atingimento"
-                  />
+                  {!isNA(fat.meta_mensal) && (
+                    <MetaLinha
+                      label="Meta mensal"
+                      valor={fat.meta_mensal}
+                      pct={fat.pct_mensal}
+                      acima={fat.acima_mensal}
+                      tipo="atingimento"
+                    />
+                  )}
                 </div>
               </CardBox>
             )}

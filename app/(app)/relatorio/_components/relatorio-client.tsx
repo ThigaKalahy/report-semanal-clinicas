@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { format, subDays, subWeeks, startOfWeek, endOfWeek } from "date-fns";
 import {
   FileText, Copy, Check, ChevronDown, ChevronUp,
@@ -227,6 +227,59 @@ function ReadOnlyPct({ value }: { value: number | null }) {
   );
 }
 
+// ─── Campo Monetário (formata R$ ao vivo enquanto digita) ─────────────────────
+function CampoMonetario({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  function toDigits(v: string): string {
+    if (!v || v === "N/A" || v === "—") return "";
+    const num = parseFmtNum(v);
+    return num !== null && num >= 0 ? String(Math.round(num)) : "";
+  }
+
+  const [raw, setRaw] = useState(() => toDigits(value));
+
+  // Sync quando value muda externamente (carga do servidor, preenchimento por IA)
+  const prevRef = useRef(value);
+  if (prevRef.current !== value) {
+    prevRef.current = value;
+    const newRaw = toDigits(value);
+    if (newRaw !== raw) setRaw(newRaw);
+  }
+
+  function fmtBRL(digits: string): string {
+    if (!digits) return "";
+    const num = parseInt(digits, 10);
+    if (isNaN(num)) return "";
+    return num.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 0,
+    });
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, "");
+    setRaw(digits);
+    onChange(digits ? fmtBRL(digits) : "");
+  }
+
+  return (
+    <Input
+      value={fmtBRL(raw)}
+      onChange={handleChange}
+      inputMode="numeric"
+      className={className}
+    />
+  );
+}
+
 // ─── Google Fallback Panel (por clínica) ──────────────────────────────────────
 function GoogleFallbackPanel({
   clinicaNome, placeId, textoManual, onChangeTexto, labelOverride,
@@ -442,35 +495,54 @@ function FormImagem({ dados, onChange }: {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Faturamento x Meta</h3>
         <div className="grid grid-cols-2 gap-3">
-          {/* Acumulado — renderizado separado para mostrar indicador de planilha */}
+          {/* Faturamento no período (filtro selecionado — informativo, sem % de meta) */}
+          {fat.realizado_filtro !== undefined && (
+            <div className="space-y-1">
+              <Label className="text-xs">Faturamento no período</Label>
+              <CampoMonetario
+                value={fat.realizado_filtro ?? ""}
+                onChange={v => onFatChange({ realizado_filtro: v || undefined })}
+                className="text-sm" />
+              {fat.realizado_filtro_from_planilha && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Database className="h-3 w-3 shrink-0" />
+                  Da planilha — informativo (% calculado sobre acumulado)
+                </p>
+              )}
+            </div>
+          )}
+          {/* Acumulado do mês (dia 01 até data_fim — base dos %) */}
           <div className="space-y-1">
-            <Label className="text-xs">Acumulado</Label>
-            <Input
+            <Label className="text-xs">
+              {fat.realizado_filtro !== undefined ? "Acumulado no mês" : "Acumulado"}
+            </Label>
+            <CampoMonetario
               value={fat.acumulado ?? ""}
-              onChange={e => onFatChange({ acumulado: e.target.value })}
+              onChange={v => onFatChange({ acumulado: v })}
               className="text-sm" />
             {fat.acumulado_from_planilha && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Database className="h-3 w-3 shrink-0" />
-                Preenchido a partir da planilha de faturamento
+                {fat.realizado_filtro !== undefined ? "Da planilha (dia 01 → data fim)" : "Preenchido a partir da planilha"}
               </p>
             )}
           </div>
+          {/* Meta do período e Meta mensal */}
           {FAT_EXTRA_FIELDS.map(([k, l]) => (
             <div key={k} className="space-y-1">
               <Label className="text-xs">{l}</Label>
-              <Input
+              <CampoMonetario
                 value={(fat as unknown as Record<string, string>)[k] ?? ""}
-                onChange={e => onFatChange({ [k]: e.target.value } as Partial<FaturamentoVisao>)}
+                onChange={v => onFatChange({ [k]: v } as Partial<FaturamentoVisao>)}
                 className="text-sm" />
             </div>
           ))}
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">% do período (auto)</Label>
+            <Label className="text-xs text-muted-foreground">% do período (auto, base = acumulado)</Label>
             <ReadOnlyPct value={fat.pct_periodo} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">% da meta mensal (auto)</Label>
+            <Label className="text-xs text-muted-foreground">% da meta mensal (auto, base = acumulado)</Label>
             <ReadOnlyPct value={fat.pct_mensal} />
           </div>
         </div>
@@ -517,16 +589,34 @@ function FormImagem({ dados, onChange }: {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Comercial &amp; Conversão</h3>
         <div className="grid grid-cols-2 gap-3">
-          {(["conversao_leads", "conversao_orcamentos", "total_leads", "total_orcamentos"] as (keyof typeof com)[]).map(k => (
-            <div key={k} className="space-y-1">
-              <Label className="text-xs">{k.replace(/_/g, " ")}</Label>
-              <Input
-                value={(com as unknown as Record<string, unknown>)[k] as string ?? ""}
-                placeholder="N/A"
-                onChange={e => onChange({ ...dados, visaoGeral: { ...visaoGeral, comercial: { ...com, [k]: e.target.value } } })}
-                className="text-sm" />
-            </div>
-          ))}
+          {(["conversao_leads", "conversao_orcamentos", "total_leads", "total_orcamentos"] as (keyof typeof com)[]).map(k => {
+            const isPct   = k === "conversao_leads" || k === "conversao_orcamentos";
+            const isMoney = k === "total_orcamentos";
+            const LABELS: Record<string, string> = {
+              conversao_leads:      "Conversão de leads",
+              conversao_orcamentos: "Conversão de orçamentos",
+              total_leads:          "Total de leads",
+              total_orcamentos:     "Total de orçamentos (R$)",
+            };
+            const val = (com as unknown as Record<string, unknown>)[k] as string ?? "";
+            return (
+              <div key={k} className="space-y-1">
+                <Label className="text-xs">{LABELS[k]}</Label>
+                {isMoney ? (
+                  <CampoMonetario
+                    value={val === "N/A" ? "" : val}
+                    onChange={v => onChange({ ...dados, visaoGeral: { ...visaoGeral, comercial: { ...com, [k]: v || "N/A" } } })}
+                    className="text-sm" />
+                ) : (
+                  <Input
+                    value={val}
+                    placeholder={isPct ? "Ex: 25%" : "N/A"}
+                    onChange={e => onChange({ ...dados, visaoGeral: { ...visaoGeral, comercial: { ...com, [k]: e.target.value } } })}
+                    className="text-sm" />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
