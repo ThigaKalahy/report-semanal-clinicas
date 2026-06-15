@@ -80,14 +80,31 @@ function buildFaturamento(
 function buildNpsGoogle(
   nps: ResultadoNPS | null,
   google: ResultadoGoogle | null,
-  metas: ResultadoMeta[]
+  metas: ResultadoMeta[],
+  ini: Date,
+  fim: Date,
 ): NpsGoogleVisao {
   const metaNps    = metas.find((m) => m.tipo_nome.toLowerCase().includes("nps"));
   const metaGoogle = metas.find((m) => m.tipo_nome.toLowerCase().includes("google"));
 
+  // Log diagnóstico temporário — aparece no terminal do servidor (npm run dev)
+  console.log(`[nps-google] período: ${ini.toLocaleDateString("pt-BR")} → ${fim.toLocaleDateString("pt-BR")}`);
+  if (nps) {
+    console.log(`[nps-google] NPS coletor retornou: total=${nps.total} | nps_score=${nps.nps_score} | promotores=${nps.classificacao.promotores} neutros=${nps.classificacao.neutros} detratores=${nps.classificacao.detratores}`);
+    console.log(`[nps-google] → campo "Respostas NPS" receberá: ${nps.total} (total de respostas no período)`);
+  } else {
+    console.log("[nps-google] NPS: sem dados (fonte não configurada ou erro)");
+  }
+  if (google) {
+    console.log(`[nps-google] Google coletor retornou: total=${google.total} avaliações filtradas no período`);
+    console.log(`[nps-google] → campo "Avaliações Google" receberá: ${google.total}`);
+  } else {
+    console.log("[nps-google] Google: sem dados");
+  }
+
   return {
-    respostas_nps:     nps?.nps_score ?? null,
-    avaliacoes_google: google?.total  ?? null,
+    respostas_nps:     nps?.total    ?? null,   // contagem de respostas no período (não o score)
+    avaliacoes_google: google?.total ?? null,
     meta_nps_meta:     metaNps?.meta_mensal    ?? null,
     meta_google_meta:  metaGoogle?.meta_mensal ?? null,
   };
@@ -132,7 +149,7 @@ export function montarDadosImagem(
   void pre; // disponível para expansão futura
 
   const faturamento = buildFaturamento(metas, realizadoFaturamento);
-  const npsGoogle   = buildNpsGoogle(nps, google, metas);
+  const npsGoogle   = buildNpsGoogle(nps, google, metas, ini, fim);
   const comercial   = buildComercial(leads);
   const destaques   = buildDestaquesCategoria(porCategoriaFaturamento);
 

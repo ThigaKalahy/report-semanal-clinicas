@@ -53,7 +53,9 @@
       "Bash(curl -sf http://localhost:3000/api/sheets/test -X POST -H \"Content-Type: application/json\" -d '{\"sheet_id\":\"test\",\"aba_nome\":\"test\"}' -o /dev/null -w \"%{http_code}\")",
       "Bash(netstat -ano)",
       "Bash(echo \"PID=$!\")",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(dir /b *.env* .env*)",
+      "Bash(dir /b env*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\thiago.silva\\Documents\\projetos\\report-semanal-clinicas\\app\\api\\relatorio-imagem"

@@ -18,8 +18,8 @@ export interface FaturamentoVisao {
 }
 
 export interface NpsGoogleVisao {
-  respostas_nps: number | null;      // NPS score realizado (comparado ao alvo)
-  avaliacoes_google: number | null;  // qtd. de avaliações Google (comparado ao alvo)
+  respostas_nps: number | null;      // TOTAL de respostas NPS no período (não o score)
+  avaliacoes_google: number | null;  // qtd. de avaliações Google no período
   meta_nps_meta: number | null;      // alvo NPS (valor_meta_mensal da meta tipo NPS)
   meta_google_meta: number | null;   // alvo Google (valor_meta_mensal da meta tipo Google)
 }
