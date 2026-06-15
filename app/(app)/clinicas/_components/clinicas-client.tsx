@@ -95,6 +95,8 @@ export function ClinicasClient({ clinicas }: Props) {
               const temPre   = c.fontes_dados.some((f) => f.tipo === "pre_consulta");
               const temNps   = c.fontes_dados.some((f) => f.tipo === "nps");
               const temLeads = c.fontes_dados.some((f) => f.tipo === "leads");
+              const temFat   = c.fontes_dados.some((f) => f.tipo === "faturamento");
+              const temDesp  = c.fontes_dados.some((f) => f.tipo === "despesa");
               return (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.nome}</TableCell>
@@ -118,9 +120,10 @@ export function ClinicasClient({ clinicas }: Props) {
                       <Badge variant="secondary">Inativa</Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1.5">
+                  <TableCell className="min-w-0">
+                    <div className="flex flex-wrap gap-1.5">
                       <Badge
+                        title="Pré-consulta"
                         variant={temPre ? "default" : "outline"}
                         className={temPre
                           ? "bg-gestfy-roxo-03 text-white hover:bg-gestfy-roxo-03/90 border-transparent"
@@ -129,6 +132,7 @@ export function ClinicasClient({ clinicas }: Props) {
                         Pré
                       </Badge>
                       <Badge
+                        title="NPS"
                         variant={temNps ? "default" : "outline"}
                         className={temNps
                           ? "bg-gestfy-laranja-05 text-white hover:bg-gestfy-laranja-05/90 border-transparent"
@@ -137,12 +141,31 @@ export function ClinicasClient({ clinicas }: Props) {
                         NPS
                       </Badge>
                       <Badge
+                        title="Leads"
                         variant={temLeads ? "default" : "outline"}
                         className={temLeads
                           ? "bg-gestfy-roxo-04 text-white hover:bg-gestfy-roxo-04/90 border-transparent"
                           : "text-muted-foreground"}
                       >
                         Leads
+                      </Badge>
+                      <Badge
+                        title="Faturamento"
+                        variant={temFat ? "default" : "outline"}
+                        className={temFat
+                          ? "bg-emerald-600 text-white hover:bg-emerald-600/90 border-transparent dark:bg-emerald-500 dark:hover:bg-emerald-500/90"
+                          : "text-muted-foreground"}
+                      >
+                        Fat.
+                      </Badge>
+                      <Badge
+                        title="Despesa"
+                        variant={temDesp ? "default" : "outline"}
+                        className={temDesp
+                          ? "bg-teal-600 text-white hover:bg-teal-600/90 border-transparent dark:bg-teal-500 dark:hover:bg-teal-500/90"
+                          : "text-muted-foreground"}
+                      >
+                        Desp.
                       </Badge>
                     </div>
                   </TableCell>
