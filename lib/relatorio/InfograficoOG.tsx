@@ -1,27 +1,31 @@
 import React from "react";
 import type { RelatorioImagemData, DestaqueItem } from "./imagem-tipos";
 
-// ─── Dimensões (quadrado 1:1) ────────────────────────────────────────────────
-export const INFOGRAFICO_SIZE = 1080;
+// ─── Dimensões ───────────────────────────────────────────────────────────────
+// Largura fixa; a altura é calculada pelo Satori a partir do conteúdo, para a
+// imagem terminar onde o conteúdo acaba (sem espaço vazio no rodapé).
+export const INFOGRAFICO_LARGURA = 1080;
 
-// ─── Paleta ──────────────────────────────────────────────────────────────────
+// ─── Paleta Gestfy ───────────────────────────────────────────────────────────
 const C = {
-  bg: "#150A1E",
-  bgTopo: "#231033",
-  bgBase: "#1B0A28",
-  card: "rgba(255,255,255,0.045)",
-  cardBorda: "rgba(255,255,255,0.075)",
+  bgEscuro:"#0A0313",  // canto inferior esquerdo — quase preto
+  bgMeio:  "#0B0316",  // metade de baixo praticamente chapada (evita banding)
+  bgClaro: "#170528",  // topo da rampa, já dentro da área do brilho
+  brilhoQuente: "rgba(163,43,112,0.34)",  // brilho magenta/quente no canto do selo
+  brilhoBorda:  "rgba(163,43,112,0)",     // dissipação do brilho
+  card: "rgba(255,255,255,0.065)",
+  cardBorda: "rgba(255,255,255,0.11)",
   laranja: "#F5872F",
   magenta: "#C026D3",
-  roxo: "#A855F7",
-  lavanda: "#A79BB5",
+  roxo: "#B57BF7",
+  lavanda: "#BCAFCE",
   branco: "#FFFFFF",
   vermelho: "#F04747",
-  vermelhoBg: "rgba(240,71,71,0.07)",
-  vermelhoBorda: "rgba(240,71,71,0.45)",
+  vermelhoBg: "rgba(240,71,71,0.09)",
+  vermelhoBorda: "rgba(240,71,71,0.42)",
   verde: "#3FBF6E",
   ambar: "#E6A700",
-  trilho: "rgba(255,255,255,0.12)",
+  trilho: "rgba(255,255,255,0.14)",
 } as const;
 
 type S = React.CSSProperties;
@@ -34,10 +38,17 @@ function row(extra?: S): S {
   return { display: "flex", flexDirection: "row", ...extra };
 }
 
-function truncar(texto: string, max: number): string {
-  const t = (texto ?? "").trim();
-  return t.length > max ? t.slice(0, max - 1).trimEnd() + "…" : t;
+/** Texto seguro: nunca renderiza null/undefined/NaN. */
+function txt(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+  return String(v).trim();
 }
+
+const isNA = (v?: string | null): boolean => {
+  const t = txt(v);
+  return t === "" || t === "N/A" || t === "—" || t.toLowerCase() === "nan";
+};
 
 // ─── Título de seção ─────────────────────────────────────────────────────────
 function SecaoTitulo({ label }: { label: string }) {
@@ -45,7 +56,7 @@ function SecaoTitulo({ label }: { label: string }) {
     <div
       style={{
         display: "flex",
-        fontSize: 20,
+        fontSize: 26,
         fontWeight: 800,
         color: C.laranja,
         letterSpacing: 3,
@@ -90,6 +101,29 @@ function BarraProgresso({ pct }: { pct: number }) {
   );
 }
 
+// ─── Valor do card: monetário sai em duas linhas ("R$" em cima) ──────────────
+function ValorCard({ valor, cor }: { valor: string; cor: string }) {
+  const monetario = /^R\$\s*/.test(valor);
+  const numero = monetario ? valor.replace(/^R\$\s*/, "") : valor;
+  // Encolhe o número quando é longo (ex: "1.158.390")
+  const tamanho = numero.length > 8 ? 28 : numero.length > 6 ? 32 : monetario ? 36 : 44;
+
+  if (!monetario) {
+    return (
+      <div style={{ display: "flex", fontSize: tamanho, fontWeight: 800, color: cor, lineHeight: 1.1 }}>
+        {numero}
+      </div>
+    );
+  }
+
+  return (
+    <div style={col({ lineHeight: 1.05 })}>
+      <div style={{ display: "flex", fontSize: tamanho, fontWeight: 800, color: cor }}>R$</div>
+      <div style={{ display: "flex", fontSize: tamanho, fontWeight: 800, color: cor }}>{numero}</div>
+    </div>
+  );
+}
+
 // ─── Card de indicador (topo) ────────────────────────────────────────────────
 function KpiCard({
   label,
@@ -104,9 +138,6 @@ function KpiCard({
   perigo?: boolean;
   pct?: number | null;
 }) {
-  // Reduz o corpo do número quando o valor é longo (ex: "R$ 158.390")
-  const tamanhoValor = valor.length > 10 ? 30 : valor.length > 8 ? 34 : 40;
-
   return (
     <div
       style={{
@@ -139,29 +170,21 @@ function KpiCard({
       >
         {label}
       </div>
-      <div
-        style={{
-          display: "flex",
-          fontSize: tamanhoValor,
-          fontWeight: 800,
-          color: perigo ? C.vermelho : C.branco,
-          lineHeight: 1.1,
-        }}
-      >
-        {valor}
-      </div>
+      <ValorCard valor={valor} cor={perigo ? C.vermelho : C.branco} />
       {pct != null && <BarraProgresso pct={pct} />}
-      <div
-        style={{
-          display: "flex",
-          fontSize: 12,
-          color: C.lavanda,
-          lineHeight: 1.4,
-          marginTop: pct != null ? 0 : 8,
-        }}
-      >
-        {sub}
-      </div>
+      {sub !== "" && (
+        <div
+          style={{
+            display: "flex",
+            fontSize: 12,
+            color: C.lavanda,
+            lineHeight: 1.4,
+            marginTop: pct != null ? 0 : 10,
+          }}
+        >
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -169,9 +192,9 @@ function KpiCard({
 // ─── Ícone de destaque ───────────────────────────────────────────────────────
 function DestaqueIcone({ tipo }: { tipo: DestaqueItem["tipo"] }) {
   const map: Record<DestaqueItem["tipo"], { symbol: string; bg: string; color: string }> = {
-    positivo:   { symbol: "+", bg: "rgba(63,191,110,0.16)",  color: C.verde   },
-    financeiro: { symbol: "$", bg: "rgba(245,135,47,0.16)",  color: C.laranja },
-    atencao:    { symbol: "!", bg: "rgba(230,167,0,0.16)",   color: C.ambar   },
+    positivo:   { symbol: "+", bg: "rgba(63,191,110,0.18)", color: C.verde   },
+    financeiro: { symbol: "$", bg: "rgba(245,135,47,0.18)", color: C.laranja },
+    atencao:    { symbol: "!", bg: "rgba(230,167,0,0.18)",  color: C.ambar   },
   };
   const { symbol, bg, color } = map[tipo] ?? map.atencao;
   return (
@@ -180,11 +203,11 @@ function DestaqueIcone({ tipo }: { tipo: DestaqueItem["tipo"] }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        width: 30,
-        height: 30,
+        width: 32,
+        height: 32,
         borderRadius: 8,
         background: bg,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 800,
         color,
         flexShrink: 0,
@@ -203,17 +226,65 @@ function AlertaIcone() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        width: 26,
-        height: 26,
-        borderRadius: 7,
-        background: "rgba(240,71,71,0.18)",
-        fontSize: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        background: "rgba(240,71,71,0.2)",
+        fontSize: 16,
         fontWeight: 800,
         color: C.vermelho,
         flexShrink: 0,
       }}
     >
       !
+    </div>
+  );
+}
+
+// ─── Linha de item (altura orgânica: acompanha o texto) ──────────────────────
+// Sempre menor que o título de seção (26), para preservar a hierarquia visual.
+const FONTE_ITEM = 21;
+const FONTE_NUM_ACAO = 25;
+
+function ItemCard({
+  icone,
+  texto,
+  perigo = false,
+}: {
+  icone: React.ReactNode;
+  texto: string;
+  perigo?: boolean;
+}) {
+  return (
+    <div
+      style={row({
+        gap: 14,
+        alignItems: "flex-start",
+        background: perigo ? C.vermelhoBg : C.card,
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: perigo ? C.vermelhoBorda : C.cardBorda,
+        borderRadius: 12,
+        paddingTop: 14,
+        paddingBottom: 14,
+        paddingLeft: 18,
+        paddingRight: 18,
+      })}
+    >
+      {icone}
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          minWidth: 0,
+          fontSize: FONTE_ITEM,
+          color: C.branco,
+          lineHeight: 1.45,
+          paddingTop: 3,
+        }}
+      >
+        {texto}
+      </div>
     </div>
   );
 }
@@ -265,7 +336,7 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
   };
 }
 
-// ─── Monta os cards de indicador a partir dos dados ──────────────────────────
+// ─── Monta os cards de indicador a partir dos dados (oculta os N/A) ──────────
 interface KpiSpec {
   label: string;
   valor: string;
@@ -278,36 +349,35 @@ function montarKpis(dados: RelatorioImagemData): KpiSpec[] {
   const fat = dados.visaoGeral.faturamento;
   const ng  = dados.visaoGeral.npsGoogle;
   const com = dados.visaoGeral.comercial;
-  const isNA = (v?: string | null) => !v || v === "N/A" || v === "—";
 
   const kpis: KpiSpec[] = [];
+  const numOk = (v: number | null | undefined): v is number =>
+    typeof v === "number" && Number.isFinite(v);
 
   // 1 — Faturamento no período selecionado
   if (!isNA(fat.realizado_filtro)) {
     kpis.push({
       label: "Faturamento no período",
-      valor: fat.realizado_filtro!,
-      sub: isNA(fat.meta_periodo)
-        ? "Período avaliado"
-        : `Meta do período: ${fat.meta_periodo}`,
+      valor: txt(fat.realizado_filtro),
+      sub: isNA(fat.meta_periodo) ? "Período avaliado" : `Meta do período: ${txt(fat.meta_periodo)}`,
     });
   }
 
   // 2 — Acumulado no mês, com barra de progresso real da meta mensal
   if (!isNA(fat.acumulado)) {
-    const pct = fat.pct_mensal;
+    const pct = numOk(fat.pct_mensal) ? fat.pct_mensal : null;
     kpis.push({
       label: "Acumulado no mês",
-      valor: fat.acumulado,
-      pct: pct,
+      valor: txt(fat.acumulado),
+      pct,
       sub: pct != null ? `${pct}% da meta mensal` : "Sem meta mensal definida",
     });
   }
 
   // 3 — Respostas NPS
-  if (ng.respostas_nps !== null) {
-    const meta = ng.meta_nps_meta;
-    const pct = meta && meta > 0 ? Math.round((ng.respostas_nps / meta) * 100) : null;
+  if (numOk(ng.respostas_nps)) {
+    const meta = numOk(ng.meta_nps_meta) && ng.meta_nps_meta > 0 ? ng.meta_nps_meta : null;
+    const pct = meta ? Math.round((ng.respostas_nps / meta) * 100) : null;
     kpis.push({
       label: "Respostas NPS",
       valor: String(ng.respostas_nps),
@@ -317,9 +387,9 @@ function montarKpis(dados: RelatorioImagemData): KpiSpec[] {
   }
 
   // 4 — Avaliações Google
-  if (ng.avaliacoes_google !== null) {
-    const meta = ng.meta_google_meta;
-    const pct = meta && meta > 0 ? Math.round((ng.avaliacoes_google / meta) * 100) : null;
+  if (numOk(ng.avaliacoes_google)) {
+    const meta = numOk(ng.meta_google_meta) && ng.meta_google_meta > 0 ? ng.meta_google_meta : null;
+    const pct = meta ? Math.round((ng.avaliacoes_google / meta) * 100) : null;
     kpis.push({
       label: "Avaliações Google",
       valor: String(ng.avaliacoes_google),
@@ -332,64 +402,65 @@ function montarKpis(dados: RelatorioImagemData): KpiSpec[] {
 
   // 5 — Total de leads
   if (!isNA(com.total_leads)) {
-    const zero = com.total_leads.trim() === "0";
+    const zero = txt(com.total_leads) === "0";
     kpis.push({
       label: "Total de leads",
-      valor: com.total_leads,
+      valor: txt(com.total_leads),
       sub: zero
         ? "Sem registro no CRM"
         : isNA(com.conversao_leads)
           ? "No período avaliado"
-          : `Conversão de ${com.conversao_leads}`,
+          : `Conversão de ${txt(com.conversao_leads)}`,
       perigo: zero,
     });
   }
 
-  return kpis.slice(0, 5);
+  return kpis;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function InfograficoOG({
   dados: rawDados,
   logoSrc,
-  size = INFOGRAFICO_SIZE,
+  largura = INFOGRAFICO_LARGURA,
 }: {
   dados: RelatorioImagemData;
   logoSrc?: string | null;
-  size?: number;
+  largura?: number;
 }) {
   const dados = withDefaults(rawDados);
   const { cabecalho, rodape } = dados;
 
   const kpis = montarKpis(dados);
-  const destaques = dados.destaques.slice(0, 5);
-  const acoes     = dados.acoes.filter((a) => a.trim()).slice(0, 4);
-  const alertas   = dados.alertas.filter((a) => a.trim()).slice(0, 4);
+  // Renderiza exatamente os itens existentes; seção sem item não aparece.
+  const destaques = dados.destaques.filter((d) => txt(d?.texto) !== "");
+  const alertas   = dados.alertas.map(txt).filter((a) => a !== "");
+  const acoes     = dados.acoes.map(txt).filter((a) => a !== "");
 
-  // Corpo do texto encolhe quando há muito conteúdo, para caber no quadrado
-  const totalItens = destaques.length + acoes.length + alertas.length;
-  const fonteItem = totalItens > 10 ? 16 : totalItens > 8 ? 17 : 18;
-
-  const nome = cabecalho.clinica_nome || "Clínica";
+  const nome = txt(cabecalho.clinica_nome) || "Clínica";
   const nomeTruncado = nome.length > 28 ? nome.slice(0, 27) + "…" : nome;
-  const selo = cabecalho.semana != null ? `SEMANA ${cabecalho.semana}` : (cabecalho.tag || "");
-
-  const temColunaDireita = acoes.length > 0 || alertas.length > 0;
-  const temColunaEsquerda = destaques.length > 0;
-  // Com 3+ destaques os cards dividem a altura da coluna; com poucos, altura natural
-  const esticarDestaques = destaques.length >= 3;
+  const selo = cabecalho.semana != null && Number.isFinite(cabecalho.semana)
+    ? `SEMANA ${cabecalho.semana}`
+    : txt(cabecalho.tag);
+  const periodo = `${txt(cabecalho.periodo_ini)} até ${txt(cabecalho.periodo_fim)}`;
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        width: size,
-        height: size,
-        background: `linear-gradient(155deg, ${C.bgTopo} 0%, ${C.bg} 45%, ${C.bgBase} 100%)`,
+        width: largura,
+        // Satori exige backgroundImage (não o shorthand) para o degradê pegar toda a área;
+        // backgroundColor cobre o fundo caso o degradê não seja resolvido.
+        backgroundColor: C.bgEscuro,
+        // Rampa diagonal curta (quase chapada) + brilho quente concentrado no canto
+        // superior direito, atrás do selo da semana.
+        backgroundImage:
+          `radial-gradient(circle 620px at 92% 0%, ${C.brilhoQuente} 0%, ${C.brilhoBorda} 72%), ` +
+          `linear-gradient(45deg, ${C.bgEscuro} 0%, ${C.bgMeio} 56%, ${C.bgClaro} 100%)`,
         fontFamily: "Inter",
         paddingTop: 40,
-        paddingBottom: 34,
+        paddingBottom: 38,
         paddingLeft: 44,
         paddingRight: 44,
       }}
@@ -409,15 +480,7 @@ export function InfograficoOG({
 
         <div style={col({ flex: 1, minWidth: 0, gap: 6 })}>
           <div style={row({ alignItems: "baseline", gap: 10 })}>
-            <div
-              style={{
-                display: "flex",
-                fontSize: 30,
-                fontWeight: 800,
-                color: C.laranja,
-                letterSpacing: 1,
-              }}
-            >
+            <div style={{ display: "flex", fontSize: 30, fontWeight: 800, color: C.laranja, letterSpacing: 1 }}>
               REPORT SEMANAL —
             </div>
             <div
@@ -434,11 +497,11 @@ export function InfograficoOG({
             </div>
           </div>
           <div style={{ display: "flex", fontSize: 16, color: C.lavanda }}>
-            {cabecalho.periodo_ini} até {cabecalho.periodo_fim} · Comparativo com meta do período
+            {periodo} · Comparativo com meta do período
           </div>
         </div>
 
-        {selo && (
+        {selo !== "" && (
           <div
             style={{
               display: "flex",
@@ -473,7 +536,7 @@ export function InfograficoOG({
           height: 1,
           marginTop: 22,
           marginBottom: 22,
-          background: `linear-gradient(90deg, rgba(245,135,47,0.55), rgba(255,255,255,0.06))`,
+          background: "linear-gradient(90deg, rgba(245,135,47,0.55), rgba(255,255,255,0.06))",
         }}
       />
 
@@ -481,174 +544,102 @@ export function InfograficoOG({
       {kpis.length > 0 && (
         <div style={row({ gap: 12 })}>
           {kpis.map((k, i) => (
-            <KpiCard
-              key={i}
-              label={k.label}
-              valor={k.valor}
-              sub={k.sub}
-              perigo={k.perigo}
-              pct={k.pct}
-            />
+            <KpiCard key={i} label={k.label} valor={k.valor} sub={k.sub} perigo={k.perigo} pct={k.pct} />
           ))}
         </div>
       )}
 
-      {/* ── Corpo: destaques | (ações + alertas) ── */}
-      <div style={row({ flex: 1, gap: 24, marginTop: 26, overflow: "hidden" })}>
-        {/* Coluna esquerda — Principais destaques */}
-        {temColunaEsquerda && (
-          <div style={col({ flex: temColunaDireita ? 1.25 : 1, minWidth: 0 })}>
-            <SecaoTitulo label="Principais destaques" />
-            <div style={col({ gap: 12, flex: 1 })}>
-              {destaques.map((d, i) => (
-                <div
-                  key={i}
-                  style={row({
-                    gap: 14,
-                    flex: esticarDestaques ? 1 : undefined,
-                    alignItems: "center",
-                    background: C.card,
-                    borderWidth: 1,
-                    borderStyle: "solid",
-                    borderColor: C.cardBorda,
-                    borderRadius: 12,
-                    paddingTop: 16,
-                    paddingBottom: 16,
-                    paddingLeft: 18,
-                    paddingRight: 18,
-                  })}
-                >
-                  <DestaqueIcone tipo={d.tipo} />
-                  <div
-                    style={{
-                      display: "flex",
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: fonteItem,
-                      color: C.branco,
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {truncar(d.texto, 130)}
-                  </div>
-                </div>
-              ))}
-            </div>
+      {/* ── Principais destaques ── */}
+      {destaques.length > 0 && (
+        <div style={col({ marginTop: 30 })}>
+          <SecaoTitulo label="Principais destaques" />
+          <div style={col({ gap: 10 })}>
+            {destaques.map((d, i) => (
+              <ItemCard key={i} icone={<DestaqueIcone tipo={d.tipo} />} texto={txt(d.texto)} />
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Coluna direita — Ações sugeridas e, abaixo, Alertas */}
-        {temColunaDireita && (
-          <div style={col({ flex: 1, minWidth: 0, gap: 24 })}>
-            {acoes.length > 0 && (
-              <div style={col()}>
-                <SecaoTitulo label="Ações sugeridas" />
+      {/* ── Alertas ── */}
+      {alertas.length > 0 && (
+        <div style={col({ marginTop: 30 })}>
+          <SecaoTitulo label="Alertas" />
+          <div style={col({ gap: 10 })}>
+            {alertas.map((a, i) => (
+              <ItemCard key={i} icone={<AlertaIcone />} texto={a} perigo />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Ações sugeridas (sem moldura: usa o próprio fundo) ── */}
+      {acoes.length > 0 && (
+        <div style={col({ marginTop: 30 })}>
+          <SecaoTitulo label="Ações sugeridas" />
+          <div style={col()}>
+            {acoes.map((a, i) => (
+              <div
+                key={i}
+                style={row({
+                  gap: 20,
+                  alignItems: "flex-start",
+                  paddingTop: i === 0 ? 2 : 14,
+                  paddingBottom: 14,
+                  // Linha sutil apenas entre as ações, sem card em volta
+                  borderTopWidth: i === 0 ? 0 : 1,
+                  borderTopStyle: "solid",
+                  borderTopColor: "rgba(255,255,255,0.08)",
+                })}
+              >
                 <div
-                  style={col({
-                    background: C.card,
-                    borderWidth: 1,
-                    borderStyle: "solid",
-                    borderColor: C.cardBorda,
-                    borderRadius: 14,
-                    paddingTop: 18,
-                    paddingBottom: 18,
-                    paddingLeft: 20,
-                    paddingRight: 20,
-                    gap: 18,
-                  })}
+                  style={{
+                    display: "flex",
+                    width: 46,
+                    flexShrink: 0,
+                    fontSize: FONTE_NUM_ACAO,
+                    fontWeight: 800,
+                    color: C.roxo,
+                  }}
                 >
-                  {acoes.map((a, i) => (
-                    <div key={i} style={row({ gap: 14, alignItems: "flex-start" })}>
-                      <div
-                        style={{
-                          display: "flex",
-                          width: 40,
-                          flexShrink: 0,
-                          fontSize: 22,
-                          fontWeight: 800,
-                          color: C.roxo,
-                        }}
-                      >
-                        {String(i + 1).padStart(2, "0")}
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          width: 1,
-                          alignSelf: "stretch",
-                          background: "rgba(255,255,255,0.12)",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <div
-                        style={{
-                          display: "flex",
-                          flex: 1,
-                          minWidth: 0,
-                          fontSize: fonteItem,
-                          color: C.branco,
-                          lineHeight: 1.45,
-                          paddingLeft: 4,
-                        }}
-                      >
-                        {truncar(a, 120)}
-                      </div>
-                    </div>
-                  ))}
+                  {String(i + 1).padStart(2, "0")}
                 </div>
-              </div>
-            )}
-
-            {alertas.length > 0 && (
-              <div style={col({ flex: 1 })}>
-                <SecaoTitulo label="Alertas" />
                 <div
-                  style={col({
+                  style={{
+                    display: "flex",
                     flex: 1,
-                    background: C.vermelhoBg,
-                    borderWidth: 1,
-                    borderStyle: "solid",
-                    borderColor: C.vermelhoBorda,
-                    borderRadius: 14,
-                    paddingTop: 16,
-                    paddingBottom: 16,
-                    paddingLeft: 18,
-                    paddingRight: 18,
-                    gap: 12,
-                  })}
+                    minWidth: 0,
+                    fontSize: FONTE_ITEM,
+                    color: C.branco,
+                    lineHeight: 1.45,
+                    paddingTop: 4,
+                  }}
                 >
-                  {alertas.map((a, i) => (
-                    <div key={i} style={row({ gap: 12, alignItems: "flex-start" })}>
-                      <AlertaIcone />
-                      <div
-                        style={{
-                          display: "flex",
-                          flex: 1,
-                          minWidth: 0,
-                          fontSize: fonteItem,
-                          color: C.branco,
-                          lineHeight: 1.45,
-                          paddingTop: 2,
-                        }}
-                      >
-                        {truncar(a, 120)}
-                      </div>
-                    </div>
-                  ))}
+                  {a}
                 </div>
               </div>
-            )}
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Rodapé ── */}
-      <div style={row({ justifyContent: "space-between", alignItems: "center", marginTop: 20 })}>
+      <div
+        style={{
+          display: "flex",
+          width: "100%",
+          height: 1,
+          marginTop: 32,
+          marginBottom: 18,
+          background: "linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02))",
+        }}
+      />
+      <div style={row({ justifyContent: "space-between", alignItems: "center" })}>
         <div style={{ display: "flex", fontSize: 16, fontWeight: 800, color: C.branco, opacity: 0.35 }}>
           gestfy
         </div>
-        <div style={{ display: "flex", fontSize: 14, color: C.lavanda, opacity: 0.8 }}>
-          {rodape.mes_ano}
+        <div style={{ display: "flex", fontSize: 14, color: C.lavanda, opacity: 0.85 }}>
+          {txt(rodape.mes_ano)}
         </div>
       </div>
     </div>

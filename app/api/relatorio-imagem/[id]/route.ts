@@ -2,15 +2,16 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { InfograficoOG, INFOGRAFICO_SIZE } from "@/lib/relatorio/InfograficoOG";
+import { InfograficoOG, INFOGRAFICO_LARGURA } from "@/lib/relatorio/InfograficoOG";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
 import { checkRateLimit, rateLimitKey, tooManyRequests } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 
-// Infográfico quadrado (1:1) — mesma medida para largura e altura.
-const SIZE = INFOGRAFICO_SIZE;
+// Largura fixa; a altura é resolvida pelo Satori a partir do conteúdo
+// (height: undefined sobrescreve o padrão 630 do ImageResponse).
+const W = INFOGRAFICO_LARGURA;
 
 async function loadFonts() {
   const fontDir = join(process.cwd(), "public", "fonts");
@@ -86,9 +87,9 @@ export async function GET(
 
     const [fonts, logoSrc] = await Promise.all([loadFonts(), loadLogoSrc()]);
 
-    return new ImageResponse(InfograficoOG({ dados, logoSrc, size: SIZE }), {
-      width: SIZE,
-      height: SIZE,
+    return new ImageResponse(InfograficoOG({ dados, logoSrc, largura: W }), {
+      width: W,
+      height: undefined,
       fonts,
     });
   } catch (err: unknown) {
