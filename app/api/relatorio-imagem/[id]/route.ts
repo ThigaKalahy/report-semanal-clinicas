@@ -2,26 +2,15 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { InfograficoOG } from "@/lib/relatorio/InfograficoOG";
+import { InfograficoOG, INFOGRAFICO_SIZE } from "@/lib/relatorio/InfograficoOG";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
 import { checkRateLimit, rateLimitKey, tooManyRequests } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 
-const W = 800;
-
-// Estima a altura com base no conteúdo para evitar espaço vazio no rodapé.
-// Os valores são aproximações generosas; texto longo pode causar leve overflow.
-function calcularAltura(dados: RelatorioImagemData): number {
-  // cabeçalho + divisor + seção visão geral (3 cards) + padding
-  let h = 720;
-  if (dados.destaques.length > 0) h += 90 + dados.destaques.length * 52;
-  if (dados.alertas.length > 0) h += 90 + dados.alertas.length * 60;
-  if (dados.acoes.length > 0) h += 90 + dados.acoes.length * 60;
-  h += 100; // rodapé + padding inferior
-  return h;
-}
+// Infográfico quadrado (1:1) — mesma medida para largura e altura.
+const SIZE = INFOGRAFICO_SIZE;
 
 async function loadFonts() {
   const fontDir = join(process.cwd(), "public", "fonts");
@@ -97,11 +86,9 @@ export async function GET(
 
     const [fonts, logoSrc] = await Promise.all([loadFonts(), loadLogoSrc()]);
 
-    const H = calcularAltura(dados);
-
-    return new ImageResponse(InfograficoOG({ dados, logoSrc, height: H }), {
-      width: W,
-      height: H,
+    return new ImageResponse(InfograficoOG({ dados, logoSrc, size: SIZE }), {
+      width: SIZE,
+      height: SIZE,
       fonts,
     });
   } catch (err: unknown) {

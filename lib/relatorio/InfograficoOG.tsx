@@ -1,18 +1,27 @@
 import React from "react";
 import type { RelatorioImagemData, DestaqueItem } from "./imagem-tipos";
 
+// ─── Dimensões (quadrado 1:1) ────────────────────────────────────────────────
+export const INFOGRAFICO_SIZE = 1080;
+
 // ─── Paleta ──────────────────────────────────────────────────────────────────
 const C = {
-  bg: "#210246",
-  bgFim: "#1A0138",
-  card: "#440570",
-  alerta: "#2F0342",
-  laranja: "#F4500F",
-  lavanda: "#B9A3D4",
+  bg: "#150A1E",
+  bgTopo: "#231033",
+  bgBase: "#1B0A28",
+  card: "rgba(255,255,255,0.045)",
+  cardBorda: "rgba(255,255,255,0.075)",
+  laranja: "#F5872F",
+  magenta: "#C026D3",
+  roxo: "#A855F7",
+  lavanda: "#A79BB5",
   branco: "#FFFFFF",
-  vermelho: "#E53935",
-  verde: "#2E9E5B",
+  vermelho: "#F04747",
+  vermelhoBg: "rgba(240,71,71,0.07)",
+  vermelhoBorda: "rgba(240,71,71,0.45)",
+  verde: "#3FBF6E",
   ambar: "#E6A700",
+  trilho: "rgba(255,255,255,0.12)",
 } as const;
 
 type S = React.CSSProperties;
@@ -25,20 +34,9 @@ function row(extra?: S): S {
   return { display: "flex", flexDirection: "row", ...extra };
 }
 
-// ─── Divisor degradê ─────────────────────────────────────────────────────────
-function Divider() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        width: "100%",
-        height: 2,
-        background: `linear-gradient(90deg, ${C.laranja}, ${C.card})`,
-        marginTop: 18,
-        marginBottom: 18,
-      }}
-    />
-  );
+function truncar(texto: string, max: number): string {
+  const t = (texto ?? "").trim();
+  return t.length > max ? t.slice(0, max - 1).trimEnd() + "…" : t;
 }
 
 // ─── Título de seção ─────────────────────────────────────────────────────────
@@ -47,12 +45,12 @@ function SecaoTitulo({ label }: { label: string }) {
     <div
       style={{
         display: "flex",
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 800,
         color: C.laranja,
         letterSpacing: 3,
         textTransform: "uppercase",
-        marginBottom: 16,
+        marginBottom: 14,
       }}
     >
       {label}
@@ -60,117 +58,120 @@ function SecaoTitulo({ label }: { label: string }) {
   );
 }
 
-// ─── Rótulo interno de card ───────────────────────────────────────────────────
-function CardLabel({ label }: { label: string }) {
+// ─── Barra de progresso real (largura = % de atingimento) ────────────────────
+function BarraProgresso({ pct }: { pct: number }) {
+  const preenchido = Math.max(0, Math.min(100, pct));
+  const completo = pct >= 100;
   return (
     <div
       style={{
         display: "flex",
-        fontSize: 11,
-        color: C.lavanda,
-        textTransform: "uppercase",
-        letterSpacing: 1,
-        marginBottom: 4,
+        width: "100%",
+        height: 8,
+        borderRadius: 99,
+        background: C.trilho,
+        marginTop: 12,
+        marginBottom: 8,
+        overflow: "hidden",
       }}
     >
-      {label}
-    </div>
-  );
-}
-
-// ─── Pill de atingimento: "X% da meta" ───────────────────────────────────────
-function AtingimentoPill({ pct, acima }: { pct: number; acima: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        background: acima ? C.verde : C.vermelho,
-        borderRadius: 4,
-        paddingTop: 2,
-        paddingBottom: 2,
-        paddingLeft: 7,
-        paddingRight: 7,
-        fontSize: 12,
-        fontWeight: 700,
-        color: C.branco,
-      }}
-    >
-      {pct}% da meta
-    </div>
-  );
-}
-
-// ─── Pill de meta do período: "23% abaixo da meta" / "8% acima da meta" ──────
-function MetaStatusPill({ pct, acima }: { pct: number; acima: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        background: acima ? C.verde : C.vermelho,
-        borderRadius: 4,
-        paddingTop: 2,
-        paddingBottom: 2,
-        paddingLeft: 7,
-        paddingRight: 7,
-        fontSize: 12,
-        fontWeight: 700,
-        color: C.branco,
-      }}
-    >
-      {pct}% {acima ? "acima da meta" : "abaixo da meta"}
-    </div>
-  );
-}
-
-// ─── Linha label + valor + pill ───────────────────────────────────────────────
-function MetaLinha({
-  label,
-  valor,
-  pct,
-  acima,
-  tipo = "diferenca",
-}: {
-  label: string;
-  valor: string;
-  pct: number | null;
-  acima: boolean;
-  tipo?: "diferenca" | "atingimento";
-}) {
-  return (
-    <div style={col({ gap: 2 })}>
       <div
         style={{
           display: "flex",
-          fontSize: 11,
+          width: `${preenchido}%`,
+          height: 8,
+          borderRadius: 99,
+          background: completo
+            ? `linear-gradient(90deg, ${C.magenta}, ${C.verde})`
+            : `linear-gradient(90deg, ${C.magenta}, ${C.laranja})`,
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Card de indicador (topo) ────────────────────────────────────────────────
+function KpiCard({
+  label,
+  valor,
+  sub,
+  perigo = false,
+  pct,
+}: {
+  label: string;
+  valor: string;
+  sub: string;
+  perigo?: boolean;
+  pct?: number | null;
+}) {
+  // Reduz o corpo do número quando o valor é longo (ex: "R$ 158.390")
+  const tamanhoValor = valor.length > 10 ? 30 : valor.length > 8 ? 34 : 40;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minWidth: 0,
+        background: perigo ? C.vermelhoBg : C.card,
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: perigo ? C.vermelhoBorda : C.cardBorda,
+        borderRadius: 16,
+        paddingTop: 18,
+        paddingBottom: 18,
+        paddingLeft: 18,
+        paddingRight: 18,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          fontSize: 12,
           color: C.lavanda,
           textTransform: "uppercase",
           letterSpacing: 1,
+          lineHeight: 1.35,
+          height: 33,
+          marginBottom: 10,
         }}
       >
         {label}
       </div>
-      <div style={row({ alignItems: "center", gap: 8 })}>
-        <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>
-          {valor}
-        </div>
-        {pct !== null && (
-          tipo === "atingimento"
-            ? <AtingimentoPill pct={pct} acima={acima} />
-            : <MetaStatusPill pct={pct} acima={acima} />
-        )}
+      <div
+        style={{
+          display: "flex",
+          fontSize: tamanhoValor,
+          fontWeight: 800,
+          color: perigo ? C.vermelho : C.branco,
+          lineHeight: 1.1,
+        }}
+      >
+        {valor}
+      </div>
+      {pct != null && <BarraProgresso pct={pct} />}
+      <div
+        style={{
+          display: "flex",
+          fontSize: 12,
+          color: C.lavanda,
+          lineHeight: 1.4,
+          marginTop: pct != null ? 0 : 8,
+        }}
+      >
+        {sub}
       </div>
     </div>
   );
 }
 
-// ─── Ícone de destaque (substitui emoji ✓ / ⚠️ / $) ─────────────────────────
+// ─── Ícone de destaque ───────────────────────────────────────────────────────
 function DestaqueIcone({ tipo }: { tipo: DestaqueItem["tipo"] }) {
   const map: Record<DestaqueItem["tipo"], { symbol: string; bg: string; color: string }> = {
-    positivo:  { symbol: "+",  bg: C.verde   + "33", color: C.verde   },
-    financeiro:{ symbol: "$",  bg: C.laranja + "33", color: C.laranja },
-    atencao:   { symbol: "!",  bg: C.ambar   + "33", color: C.ambar   },
+    positivo:   { symbol: "+", bg: "rgba(63,191,110,0.16)",  color: C.verde   },
+    financeiro: { symbol: "$", bg: "rgba(245,135,47,0.16)",  color: C.laranja },
+    atencao:    { symbol: "!", bg: "rgba(230,167,0,0.16)",   color: C.ambar   },
   };
   const { symbol, bg, color } = map[tipo] ?? map.atencao;
   return (
@@ -179,11 +180,11 @@ function DestaqueIcone({ tipo }: { tipo: DestaqueItem["tipo"] }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        width: 28,
-        height: 28,
-        borderRadius: 6,
+        width: 30,
+        height: 30,
+        borderRadius: 8,
         background: bg,
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: 800,
         color,
         flexShrink: 0,
@@ -194,7 +195,7 @@ function DestaqueIcone({ tipo }: { tipo: DestaqueItem["tipo"] }) {
   );
 }
 
-// ─── Ícone de alerta (substitui emoji 🚨) ────────────────────────────────────
+// ─── Ícone de alerta ─────────────────────────────────────────────────────────
 function AlertaIcone() {
   return (
     <div
@@ -202,39 +203,17 @@ function AlertaIcone() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        width: 22,
-        height: 22,
-        borderRadius: 4,
-        background: C.vermelho,
-        fontSize: 12,
+        width: 26,
+        height: 26,
+        borderRadius: 7,
+        background: "rgba(240,71,71,0.18)",
+        fontSize: 14,
         fontWeight: 800,
-        color: C.branco,
+        color: C.vermelho,
         flexShrink: 0,
       }}
     >
       !
-    </div>
-  );
-}
-
-// ─── Card genérico ────────────────────────────────────────────────────────────
-function CardBox({ children, style }: { children: React.ReactNode; style?: S }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        background: C.card,
-        borderRadius: 20,
-        paddingTop: 20,
-        paddingBottom: 20,
-        paddingLeft: 24,
-        paddingRight: 24,
-        gap: 8,
-        ...style,
-      }}
-    >
-      {children}
     </div>
   );
 }
@@ -247,7 +226,8 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
   return {
     cabecalho: {
       clinica_nome: raw.cabecalho?.clinica_nome ?? "Clínica",
-      tag: raw.cabecalho?.tag ?? "TAG",
+      tag: raw.cabecalho?.tag ?? "",
+      semana: raw.cabecalho?.semana ?? null,
       periodo_ini: raw.cabecalho?.periodo_ini ?? "--",
       periodo_fim: raw.cabecalho?.periodo_fim ?? "--",
     },
@@ -267,7 +247,6 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
         acima_mensal:                   f?.acima_mensal                   ?? false,
       },
       npsGoogle: {
-        // Suporta dados antigos (meta_nps_realizado era separado de respostas_nps)
         respostas_nps:     n?.respostas_nps     ?? null,
         avaliacoes_google: n?.avaliacoes_google ?? null,
         meta_nps_meta:     n?.meta_nps_meta     ?? null,
@@ -286,314 +265,389 @@ function withDefaults(raw: RelatorioImagemData): RelatorioImagemData {
   };
 }
 
+// ─── Monta os cards de indicador a partir dos dados ──────────────────────────
+interface KpiSpec {
+  label: string;
+  valor: string;
+  sub: string;
+  perigo?: boolean;
+  pct?: number | null;
+}
+
+function montarKpis(dados: RelatorioImagemData): KpiSpec[] {
+  const fat = dados.visaoGeral.faturamento;
+  const ng  = dados.visaoGeral.npsGoogle;
+  const com = dados.visaoGeral.comercial;
+  const isNA = (v?: string | null) => !v || v === "N/A" || v === "—";
+
+  const kpis: KpiSpec[] = [];
+
+  // 1 — Faturamento no período selecionado
+  if (!isNA(fat.realizado_filtro)) {
+    kpis.push({
+      label: "Faturamento no período",
+      valor: fat.realizado_filtro!,
+      sub: isNA(fat.meta_periodo)
+        ? "Período avaliado"
+        : `Meta do período: ${fat.meta_periodo}`,
+    });
+  }
+
+  // 2 — Acumulado no mês, com barra de progresso real da meta mensal
+  if (!isNA(fat.acumulado)) {
+    const pct = fat.pct_mensal;
+    kpis.push({
+      label: "Acumulado no mês",
+      valor: fat.acumulado,
+      pct: pct,
+      sub: pct != null ? `${pct}% da meta mensal` : "Sem meta mensal definida",
+    });
+  }
+
+  // 3 — Respostas NPS
+  if (ng.respostas_nps !== null) {
+    const meta = ng.meta_nps_meta;
+    const pct = meta && meta > 0 ? Math.round((ng.respostas_nps / meta) * 100) : null;
+    kpis.push({
+      label: "Respostas NPS",
+      valor: String(ng.respostas_nps),
+      sub: pct != null ? `${pct}% da meta (${meta})` : "No período avaliado",
+      perigo: ng.respostas_nps === 0,
+    });
+  }
+
+  // 4 — Avaliações Google
+  if (ng.avaliacoes_google !== null) {
+    const meta = ng.meta_google_meta;
+    const pct = meta && meta > 0 ? Math.round((ng.avaliacoes_google / meta) * 100) : null;
+    kpis.push({
+      label: "Avaliações Google",
+      valor: String(ng.avaliacoes_google),
+      sub: ng.avaliacoes_google === 0
+        ? "Nenhuma nova avaliação"
+        : pct != null ? `${pct}% da meta (${meta})` : "No período avaliado",
+      perigo: ng.avaliacoes_google === 0,
+    });
+  }
+
+  // 5 — Total de leads
+  if (!isNA(com.total_leads)) {
+    const zero = com.total_leads.trim() === "0";
+    kpis.push({
+      label: "Total de leads",
+      valor: com.total_leads,
+      sub: zero
+        ? "Sem registro no CRM"
+        : isNA(com.conversao_leads)
+          ? "No período avaliado"
+          : `Conversão de ${com.conversao_leads}`,
+      perigo: zero,
+    });
+  }
+
+  return kpis.slice(0, 5);
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function InfograficoOG({
   dados: rawDados,
   logoSrc,
-  height,
+  size = INFOGRAFICO_SIZE,
 }: {
   dados: RelatorioImagemData;
   logoSrc?: string | null;
-  height: number;
+  size?: number;
 }) {
   const dados = withDefaults(rawDados);
-  const { cabecalho, rodape, visaoGeral, destaques, alertas, acoes } = dados;
-  const fat = visaoGeral.faturamento;
-  const ng  = visaoGeral.npsGoogle;
-  const com = visaoGeral.comercial;
+  const { cabecalho, rodape } = dados;
 
-  // Truncate long clinic names so the header stays on one line
+  const kpis = montarKpis(dados);
+  const destaques = dados.destaques.slice(0, 5);
+  const acoes     = dados.acoes.filter((a) => a.trim()).slice(0, 4);
+  const alertas   = dados.alertas.filter((a) => a.trim()).slice(0, 4);
+
+  // Corpo do texto encolhe quando há muito conteúdo, para caber no quadrado
+  const totalItens = destaques.length + acoes.length + alertas.length;
+  const fonteItem = totalItens > 10 ? 16 : totalItens > 8 ? 17 : 18;
+
   const nome = cabecalho.clinica_nome || "Clínica";
-  const nomeTruncado = nome.length > 30 ? nome.slice(0, 27) + "..." : nome;
+  const nomeTruncado = nome.length > 28 ? nome.slice(0, 27) + "…" : nome;
+  const selo = cabecalho.semana != null ? `SEMANA ${cabecalho.semana}` : (cabecalho.tag || "");
+
+  const temColunaDireita = acoes.length > 0 || alertas.length > 0;
+  const temColunaEsquerda = destaques.length > 0;
+  // Com 3+ destaques os cards dividem a altura da coluna; com poucos, altura natural
+  const esticarDestaques = destaques.length >= 3;
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        width: 800,
-        height: height,
-        background: `linear-gradient(180deg, ${C.bg} 80%, ${C.bgFim} 100%)`,
+        width: size,
+        height: size,
+        background: `linear-gradient(155deg, ${C.bgTopo} 0%, ${C.bg} 45%, ${C.bgBase} 100%)`,
         fontFamily: "Inter",
-        paddingTop: 36,
-        paddingBottom: 36,
-        paddingLeft: 40,
-        paddingRight: 40,
+        paddingTop: 40,
+        paddingBottom: 34,
+        paddingLeft: 44,
+        paddingRight: 44,
       }}
     >
       {/* ── Cabeçalho ── */}
-      <div
-        style={row({
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 24,
-        })}
-      >
+      <div style={row({ alignItems: "center", gap: 18 })}>
         {logoSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoSrc} width={120} height={36} alt="Gestfy" style={{ objectFit: "contain" }} />
-        ) : (
-          <div style={{ display: "flex", fontSize: 22, fontWeight: 800, color: C.branco, letterSpacing: 1 }}>
-            gestfy
+          <img
+            src={logoSrc}
+            width={44}
+            height={44}
+            alt="Gestfy"
+            style={{ objectFit: "contain", flexShrink: 0 }}
+          />
+        ) : null}
+
+        <div style={col({ flex: 1, minWidth: 0, gap: 6 })}>
+          <div style={row({ alignItems: "baseline", gap: 10 })}>
+            <div
+              style={{
+                display: "flex",
+                fontSize: 30,
+                fontWeight: 800,
+                color: C.laranja,
+                letterSpacing: 1,
+              }}
+            >
+              REPORT SEMANAL —
+            </div>
+            <div
+              style={{
+                display: "flex",
+                fontSize: 30,
+                fontWeight: 800,
+                color: C.branco,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              {nomeTruncado}
+            </div>
           </div>
-        )}
-        <div style={col({ alignItems: "flex-end", gap: 4, maxWidth: 540 })}>
+          <div style={{ display: "flex", fontSize: 16, color: C.lavanda }}>
+            {cabecalho.periodo_ini} até {cabecalho.periodo_fim} · Comparativo com meta do período
+          </div>
+        </div>
+
+        {selo && (
           <div
             style={{
               display: "flex",
-              fontSize: 13,
+              alignItems: "center",
+              flexShrink: 0,
+              borderWidth: 2,
+              borderStyle: "solid",
+              borderColor: C.laranja,
+              borderRadius: 99,
+              background: "rgba(245,135,47,0.10)",
+              paddingTop: 9,
+              paddingBottom: 9,
+              paddingLeft: 20,
+              paddingRight: 20,
+              fontSize: 15,
               fontWeight: 800,
-              color: C.laranja,
               letterSpacing: 2,
+              color: C.laranja,
               textTransform: "uppercase",
             }}
           >
-            REPORT SEMANAL — [{nomeTruncado}]
+            {selo}
           </div>
-          <div style={{ display: "flex", fontSize: 12, color: C.lavanda }}>
-            {cabecalho.periodo_ini} até {cabecalho.periodo_fim}
-          </div>
-        </div>
+        )}
       </div>
 
-      <Divider />
+      {/* ── Divisor ── */}
+      <div
+        style={{
+          display: "flex",
+          width: "100%",
+          height: 1,
+          marginTop: 22,
+          marginBottom: 22,
+          background: `linear-gradient(90deg, rgba(245,135,47,0.55), rgba(255,255,255,0.06))`,
+        }}
+      />
 
-      {/* ── Visão Geral ── */}
-      <SecaoTitulo label="VISÃO GERAL" />
+      {/* ── Indicadores ── */}
+      {kpis.length > 0 && (
+        <div style={row({ gap: 12 })}>
+          {kpis.map((k, i) => (
+            <KpiCard
+              key={i}
+              label={k.label}
+              valor={k.valor}
+              sub={k.sub}
+              perigo={k.perigo}
+              pct={k.pct}
+            />
+          ))}
+        </div>
+      )}
 
-      {(() => {
-        const isNA = (v: string) => v === "N/A";
-
-        // ── Faturamento ──────────────────────────────────────────────────────
-        const fatFiltroVisible = fat.realizado_filtro != null && !isNA(fat.realizado_filtro);
-        const fatVisible       = !isNA(fat.acumulado) || fatFiltroVisible;
-        const showMetaPeriodo  = fatVisible && !fat.is_media && !isNA(fat.meta_periodo) && !isNA(fat.acumulado);
-
-        // ── NPS / Google ─────────────────────────────────────────────────────
-        const npsVisible =
-          ng.respostas_nps !== null ||
-          ng.avaliacoes_google !== null ||
-          ng.meta_nps_meta !== null ||
-          ng.meta_google_meta !== null;
-
-        // ── Comercial ────────────────────────────────────────────────────────
-        const comercialRows = [
-          { label: "Conversão de leads",      val: com.conversao_leads      },
-          { label: "Conversão de orçamentos", val: com.conversao_orcamentos },
-          { label: "Total de leads",           val: com.total_leads          },
-          { label: "Total de orçamentos",      val: com.total_orcamentos     },
-        ].filter((r) => !isNA(r.val));
-        const comercialVisible = comercialRows.length > 0;
-
-        return (
-          <div style={col({ gap: 16, marginBottom: 8 })}>
-            {/* Faturamento */}
-            {fatVisible && (
-              <CardBox>
-                <CardLabel label="FATURAMENTO x META" />
-                <div style={col({ gap: 10 })}>
-                  {/* Faturamento do período selecionado — linha informativa sem % */}
-                  {fatFiltroVisible && (
-                    <div style={col({ gap: 2 })}>
-                      <div style={{ display: "flex", fontSize: 11, color: C.lavanda, textTransform: "uppercase", letterSpacing: 1 }}>
-                        Faturamento no período
-                      </div>
-                      <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>
-                        {fat.realizado_filtro}
-                      </div>
-                    </div>
-                  )}
-                  {/* Acumulado do mês + metas (base dos %) */}
-                  {showMetaPeriodo && (
-                    <MetaLinha
-                      label="Acumulado no mês × Meta do período"
-                      valor={`${fat.acumulado} × ${fat.meta_periodo}`}
-                      pct={fat.pct_periodo}
-                      acima={fat.acima_periodo}
-                    />
-                  )}
-                  {!showMetaPeriodo && !isNA(fat.acumulado) && (
-                    <MetaLinha
-                      label={fatFiltroVisible ? "Acumulado no mês" : "Acumulado"}
-                      valor={fat.acumulado}
-                      pct={null}
-                      acima={false}
-                    />
-                  )}
-                  {!isNA(fat.meta_mensal) && (
-                    <MetaLinha
-                      label="Meta mensal"
-                      valor={fat.meta_mensal}
-                      pct={fat.pct_mensal}
-                      acima={fat.acima_mensal}
-                      tipo="atingimento"
-                    />
-                  )}
+      {/* ── Corpo: destaques | (ações + alertas) ── */}
+      <div style={row({ flex: 1, gap: 24, marginTop: 26, overflow: "hidden" })}>
+        {/* Coluna esquerda — Principais destaques */}
+        {temColunaEsquerda && (
+          <div style={col({ flex: temColunaDireita ? 1.25 : 1, minWidth: 0 })}>
+            <SecaoTitulo label="Principais destaques" />
+            <div style={col({ gap: 12, flex: 1 })}>
+              {destaques.map((d, i) => (
+                <div
+                  key={i}
+                  style={row({
+                    gap: 14,
+                    flex: esticarDestaques ? 1 : undefined,
+                    alignItems: "center",
+                    background: C.card,
+                    borderWidth: 1,
+                    borderStyle: "solid",
+                    borderColor: C.cardBorda,
+                    borderRadius: 12,
+                    paddingTop: 16,
+                    paddingBottom: 16,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                  })}
+                >
+                  <DestaqueIcone tipo={d.tipo} />
+                  <div
+                    style={{
+                      display: "flex",
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: fonteItem,
+                      color: C.branco,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {truncar(d.texto, 130)}
+                  </div>
                 </div>
-              </CardBox>
-            )}
+              ))}
+            </div>
+          </div>
+        )}
 
-            {/* NPS / Google */}
-            {npsVisible && (
-              <CardBox>
-                <CardLabel label="NPS / GOOGLE" />
-                <div style={col({ gap: 8 })}>
-                  {(ng.respostas_nps !== null || ng.avaliacoes_google !== null) && (
-                    <div style={row({ gap: 32 })}>
-                      {ng.respostas_nps !== null && (
-                        <div style={col({ gap: 2 })}>
-                          <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Respostas NPS</div>
-                          <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
-                            {String(ng.respostas_nps)}
-                          </div>
-                        </div>
-                      )}
-                      {ng.avaliacoes_google !== null && (
-                        <div style={col({ gap: 2 })}>
-                          <div style={{ display: "flex", fontSize: 11, color: C.lavanda }}>Avaliações Google</div>
-                          <div style={{ display: "flex", fontSize: 18, fontWeight: 800, color: C.branco }}>
-                            {String(ng.avaliacoes_google)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {ng.meta_nps_meta !== null && (() => {
-                    const pct = ng.respostas_nps !== null && ng.meta_nps_meta > 0
-                      ? Math.round(ng.respostas_nps / ng.meta_nps_meta * 100) : null;
-                    return (
-                      <MetaLinha
-                        label="Meta NPS"
-                        valor={`${ng.respostas_nps !== null ? String(ng.respostas_nps) : "—"} / ${ng.meta_nps_meta}`}
-                        pct={pct}
-                        acima={(pct ?? 0) >= 100}
-                        tipo="atingimento"
+        {/* Coluna direita — Ações sugeridas e, abaixo, Alertas */}
+        {temColunaDireita && (
+          <div style={col({ flex: 1, minWidth: 0, gap: 24 })}>
+            {acoes.length > 0 && (
+              <div style={col()}>
+                <SecaoTitulo label="Ações sugeridas" />
+                <div
+                  style={col({
+                    background: C.card,
+                    borderWidth: 1,
+                    borderStyle: "solid",
+                    borderColor: C.cardBorda,
+                    borderRadius: 14,
+                    paddingTop: 18,
+                    paddingBottom: 18,
+                    paddingLeft: 20,
+                    paddingRight: 20,
+                    gap: 18,
+                  })}
+                >
+                  {acoes.map((a, i) => (
+                    <div key={i} style={row({ gap: 14, alignItems: "flex-start" })}>
+                      <div
+                        style={{
+                          display: "flex",
+                          width: 40,
+                          flexShrink: 0,
+                          fontSize: 22,
+                          fontWeight: 800,
+                          color: C.roxo,
+                        }}
+                      >
+                        {String(i + 1).padStart(2, "0")}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          width: 1,
+                          alignSelf: "stretch",
+                          background: "rgba(255,255,255,0.12)",
+                          flexShrink: 0,
+                        }}
                       />
-                    );
-                  })()}
-                  {ng.meta_google_meta !== null && (() => {
-                    const pct = ng.avaliacoes_google !== null && ng.meta_google_meta > 0
-                      ? Math.round(ng.avaliacoes_google / ng.meta_google_meta * 100) : null;
-                    return (
-                      <MetaLinha
-                        label="Meta Google"
-                        valor={`${ng.avaliacoes_google !== null ? String(ng.avaliacoes_google) : "—"} / ${ng.meta_google_meta}`}
-                        pct={pct}
-                        acima={(pct ?? 0) >= 100}
-                        tipo="atingimento"
-                      />
-                    );
-                  })()}
-                </div>
-              </CardBox>
-            )}
-
-            {/* Comercial */}
-            {comercialVisible && (
-              <CardBox>
-                <CardLabel label="COMERCIAL E CONVERSÃO" />
-                <div style={col({ gap: 8 })}>
-                  {comercialRows.map(({ label, val }) => (
-                    <div key={label} style={row({ justifyContent: "space-between", alignItems: "center" })}>
-                      <div style={{ display: "flex", fontSize: 13, color: C.lavanda }}>{label}</div>
-                      <div style={{ display: "flex", fontSize: 15, fontWeight: 600, color: C.branco }}>{val}</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: fonteItem,
+                          color: C.branco,
+                          lineHeight: 1.45,
+                          paddingLeft: 4,
+                        }}
+                      >
+                        {truncar(a, 120)}
+                      </div>
                     </div>
                   ))}
                 </div>
-              </CardBox>
+              </div>
+            )}
+
+            {alertas.length > 0 && (
+              <div style={col({ flex: 1 })}>
+                <SecaoTitulo label="Alertas" />
+                <div
+                  style={col({
+                    flex: 1,
+                    background: C.vermelhoBg,
+                    borderWidth: 1,
+                    borderStyle: "solid",
+                    borderColor: C.vermelhoBorda,
+                    borderRadius: 14,
+                    paddingTop: 16,
+                    paddingBottom: 16,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    gap: 12,
+                  })}
+                >
+                  {alertas.map((a, i) => (
+                    <div key={i} style={row({ gap: 12, alignItems: "flex-start" })}>
+                      <AlertaIcone />
+                      <div
+                        style={{
+                          display: "flex",
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: fonteItem,
+                          color: C.branco,
+                          lineHeight: 1.45,
+                          paddingTop: 2,
+                        }}
+                      >
+                        {truncar(a, 120)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-        );
-      })()}
-
-      {/* ── Destaques ── */}
-      {destaques.length > 0 && (
-        <div style={col()}>
-          <Divider />
-          <SecaoTitulo label="PRINCIPAIS DESTAQUES" />
-          <div style={col({ gap: 10, marginBottom: 8 })}>
-            {destaques.map((d, i) => (
-              <div key={i} style={row({ gap: 12, alignItems: "flex-start" })}>
-                <DestaqueIcone tipo={d.tipo} />
-                <div style={{ display: "flex", fontSize: 14, color: C.branco, lineHeight: 1.5, paddingTop: 4 }}>
-                  {d.texto}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Alertas ── */}
-      {alertas.length > 0 && (
-        <div style={col()}>
-          <Divider />
-          <SecaoTitulo label="ALERTAS" />
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              background: C.alerta,
-              borderLeftWidth: 4,
-              borderLeftStyle: "solid",
-              borderLeftColor: C.vermelho,
-              borderTopRightRadius: 12,
-              borderBottomRightRadius: 12,
-              paddingTop: 16,
-              paddingBottom: 16,
-              paddingLeft: 20,
-              paddingRight: 20,
-              gap: 10,
-              marginBottom: 8,
-            }}
-          >
-            {alertas.map((a, i) => (
-              <div key={i} style={row({ gap: 10, alignItems: "flex-start" })}>
-                <AlertaIcone />
-                <div style={{ display: "flex", fontSize: 14, color: C.branco, lineHeight: 1.5 }}>
-                  {a}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Ações Sugeridas ── */}
-      {acoes.length > 0 && (
-        <div style={col()}>
-          <Divider />
-          <SecaoTitulo label="AÇÕES SUGERIDAS" />
-          <div style={col({ gap: 10, marginBottom: 8 })}>
-            {acoes.map((a, i) => (
-              <div key={i} style={row({ gap: 14, alignItems: "flex-start" })}>
-                <div
-                  style={{
-                    display: "flex",
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: C.laranja,
-                    minWidth: 28,
-                  }}
-                >
-                  {String(i + 1).padStart(2, "0")}
-                </div>
-                <div style={{ display: "flex", fontSize: 14, color: C.branco, lineHeight: 1.5 }}>
-                  {a}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Rodapé ── */}
-      <Divider />
-      <div style={row({ justifyContent: "space-between", alignItems: "center" })}>
-        <div style={{ display: "flex", fontSize: 16, fontWeight: 800, color: C.branco, opacity: 0.3 }}>
+      <div style={row({ justifyContent: "space-between", alignItems: "center", marginTop: 20 })}>
+        <div style={{ display: "flex", fontSize: 16, fontWeight: 800, color: C.branco, opacity: 0.35 }}>
           gestfy
         </div>
-        <div style={{ display: "flex", fontSize: 12, color: C.lavanda }}>
+        <div style={{ display: "flex", fontSize: 14, color: C.lavanda, opacity: 0.8 }}>
           {rodape.mes_ano}
         </div>
       </div>

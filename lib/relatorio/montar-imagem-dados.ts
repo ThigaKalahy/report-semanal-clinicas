@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, getISOWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Clinica } from "@/lib/supabase/types";
 import type { ResultadoPreConsulta } from "@/lib/coletores/pre-consulta";
@@ -169,6 +169,7 @@ export function montarDadosImagem(
     cabecalho: {
       clinica_nome: clinica.nome,
       tag:          clinica.tag_curta ?? clinica.slug,
+      semana:       getISOWeek(fim),
       periodo_ini:  fmtPeriodoLabel(ini),
       periodo_fim:  fmtPeriodoLabel(fim),
     },

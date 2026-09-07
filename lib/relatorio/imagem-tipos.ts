@@ -44,6 +44,7 @@ export interface VisaoGeral {
 export interface CabecalhoInfo {
   clinica_nome: string;
   tag: string;      // tag_curta ou slug
+  semana?: number | null;  // numero da semana ISO do periodo (selo do cabecalho)
   periodo_ini: string;  // ex: "26/05"
   periodo_fim: string;
 }
