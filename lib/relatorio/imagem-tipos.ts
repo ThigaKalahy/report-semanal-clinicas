@@ -58,6 +58,18 @@ export interface FaturamentoSuplementar {
   por_profissional?: Record<string, { total: number; pct_do_total: number }>;
 }
 
+/** Comentário de paciente exibido na página 2 (feedbacks). */
+export interface ComentarioItem {
+  texto:   string;
+  /** Nome já resolvido pela regra de privacidade — "Paciente (anônimo)" quando há sigilo. */
+  autor:   string;
+  origem:  "nps" | "google";
+  /** NPS 0–10 ou Google 1–5; null quando a fonte não traz nota. */
+  nota:    number | null;
+  /** true = detrator/avaliação baixa → vai para o bloco "Críticas / Sugestões". */
+  critica: boolean;
+}
+
 export interface RelatorioImagemData {
   cabecalho: CabecalhoInfo;
   rodape: RodapeInfo;
@@ -66,4 +78,6 @@ export interface RelatorioImagemData {
   alertas: string[];
   acoes: string[];
   faturamento_suplementar?: FaturamentoSuplementar;
+  /** Página 2 (opcional): só é preenchida quando o usuário pede os feedbacks. */
+  comentarios?: ComentarioItem[];
 }

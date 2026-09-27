@@ -1,10 +1,6 @@
 import { readSheetRange } from "@/lib/google/sheets";
 import type { FonteDados, Json } from "@/lib/supabase/types";
 
-// Comentários com menos caracteres que este limite são ocultados do relatório.
-// Troque o valor aqui para ajustar sem mexer na lógica.
-const MIN_CARACTERES_COMENTARIO = 35;
-
 export interface NotaCount {
   nota: number;
   count: number;
@@ -18,6 +14,12 @@ export interface Indicacao {
   usa_bruto: boolean;       // true = não foi possível separar, exibir texto_indicacao direto
 }
 
+export interface ComentarioNPS {
+  nome: string;        // já resolvido pela regra de privacidade
+  comentario: string;
+  nota: number | null; // nota geral (0–10) da resposta, quando mapeada
+}
+
 export interface ResultadoNPS {
   total: number;
   notas_gerais: NotaCount[];
@@ -29,7 +31,8 @@ export interface ResultadoNPS {
     infraestrutura: number | null;
     enfermagem: number | null;
   };
-  comentarios: { nome: string; comentario: string }[];
+  /** Todos os comentários não vazios do período, com a nota geral quando houver. */
+  comentarios: ComentarioNPS[];
   indicacoes: Indicacao[];
 }
 
@@ -168,7 +171,7 @@ export async function coletarNPS(
   const notasRec: (number | null)[] = [];
   const notasInfra: (number | null)[] = [];
   const notasEnf: (number | null)[] = [];
-  const comentarios: { nome: string; comentario: string }[] = [];
+  const comentarios: ComentarioNPS[] = [];
   const indicacoes: Indicacao[] = [];
 
   let promotores = 0,
@@ -176,9 +179,11 @@ export async function coletarNPS(
     detratores = 0;
 
   for (const row of filtered) {
+    let notaLinha: number | null = null;
     if (notaGeralIdx >= 0) {
       const ng = parseNota(String(row[notaGeralIdx] ?? ""));
       if (ng !== null) {
+        notaLinha = ng;
         notasGerais.push(ng);
         if (ng >= 9) promotores++;
         else if (ng >= 7) neutros++;
@@ -190,14 +195,14 @@ export async function coletarNPS(
     if (notaInfraIdx >= 0) notasInfra.push(parseNota(String(row[notaInfraIdx] ?? "")));
     if (notaEnfIdx >= 0) notasEnf.push(parseNota(String(row[notaEnfIdx] ?? "")));
 
-    // Comentários: ignorar vazios e muito curtos (< MIN_CARACTERES_COMENTARIO)
+    // Comentários: só descarta os vazios. O corte por relevância é de quem consome.
     if (comentIdx >= 0) {
       const comentario = String(row[comentIdx] ?? "").trim();
-      if (comentario.length >= MIN_CARACTERES_COMENTARIO) {
+      if (comentario.length > 0) {
         const nomeOriginal = nomeIdx >= 0 ? String(row[nomeIdx] ?? "").trim() : "";
         const anonimatoVal = anonimatoIdx >= 0 ? String(row[anonimatoIdx] ?? "") : "";
         const nome = resolverNomePaciente(anonimatoIdx >= 0, anonimatoVal, nomeOriginal);
-        comentarios.push({ nome, comentario });
+        comentarios.push({ nome, comentario, nota: notaLinha });
       }
     }
 

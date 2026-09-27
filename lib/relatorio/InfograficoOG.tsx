@@ -1,54 +1,11 @@
 import React from "react";
 import type { RelatorioImagemData, DestaqueItem } from "./imagem-tipos";
+import {
+  C, col, row, txt, isNA, fundoRaiz, LARGURA_OG,
+  DIVISOR_CABECALHO, DIVISOR_RODAPE,
+} from "./og-tema";
 
-// ─── Dimensões ───────────────────────────────────────────────────────────────
-// Largura fixa; a altura é calculada pelo Satori a partir do conteúdo, para a
-// imagem terminar onde o conteúdo acaba (sem espaço vazio no rodapé).
-export const INFOGRAFICO_LARGURA = 1080;
-
-// ─── Paleta Gestfy ───────────────────────────────────────────────────────────
-const C = {
-  bgEscuro:"#0A0313",  // canto inferior esquerdo — quase preto
-  bgMeio:  "#0B0316",  // metade de baixo praticamente chapada (evita banding)
-  bgClaro: "#170528",  // topo da rampa, já dentro da área do brilho
-  brilhoQuente: "rgba(163,43,112,0.34)",  // brilho magenta/quente no canto do selo
-  brilhoBorda:  "rgba(163,43,112,0)",     // dissipação do brilho
-  card: "rgba(255,255,255,0.065)",
-  cardBorda: "rgba(255,255,255,0.11)",
-  laranja: "#F5872F",
-  magenta: "#C026D3",
-  roxo: "#B57BF7",
-  lavanda: "#BCAFCE",
-  branco: "#FFFFFF",
-  vermelho: "#F04747",
-  vermelhoBg: "rgba(240,71,71,0.09)",
-  vermelhoBorda: "rgba(240,71,71,0.42)",
-  verde: "#3FBF6E",
-  ambar: "#E6A700",
-  trilho: "rgba(255,255,255,0.14)",
-} as const;
-
-type S = React.CSSProperties;
-
-// ─── Helpers de layout (todos com display:flex explícito) ─────────────────────
-function col(extra?: S): S {
-  return { display: "flex", flexDirection: "column", ...extra };
-}
-function row(extra?: S): S {
-  return { display: "flex", flexDirection: "row", ...extra };
-}
-
-/** Texto seguro: nunca renderiza null/undefined/NaN. */
-function txt(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
-  return String(v).trim();
-}
-
-const isNA = (v?: string | null): boolean => {
-  const t = txt(v);
-  return t === "" || t === "N/A" || t === "—" || t.toLowerCase() === "nan";
-};
+export const INFOGRAFICO_LARGURA = LARGURA_OG;
 
 // ─── Título de seção ─────────────────────────────────────────────────────────
 function SecaoTitulo({ label }: { label: string }) {
@@ -445,26 +402,7 @@ export function InfograficoOG({
   const periodo = `${txt(cabecalho.periodo_ini)} até ${txt(cabecalho.periodo_fim)}`;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        width: largura,
-        // Satori exige backgroundImage (não o shorthand) para o degradê pegar toda a área;
-        // backgroundColor cobre o fundo caso o degradê não seja resolvido.
-        backgroundColor: C.bgEscuro,
-        // Rampa diagonal curta (quase chapada) + brilho quente concentrado no canto
-        // superior direito, atrás do selo da semana.
-        backgroundImage:
-          `radial-gradient(circle 620px at 92% 0%, ${C.brilhoQuente} 0%, ${C.brilhoBorda} 72%), ` +
-          `linear-gradient(45deg, ${C.bgEscuro} 0%, ${C.bgMeio} 56%, ${C.bgClaro} 100%)`,
-        fontFamily: "Inter",
-        paddingTop: 40,
-        paddingBottom: 38,
-        paddingLeft: 44,
-        paddingRight: 44,
-      }}
-    >
+    <div style={fundoRaiz(largura)}>
       {/* ── Cabeçalho ── */}
       <div style={row({ alignItems: "center", gap: 18 })}>
         {logoSrc ? (
@@ -529,16 +467,7 @@ export function InfograficoOG({
       </div>
 
       {/* ── Divisor ── */}
-      <div
-        style={{
-          display: "flex",
-          width: "100%",
-          height: 1,
-          marginTop: 22,
-          marginBottom: 22,
-          background: "linear-gradient(90deg, rgba(245,135,47,0.55), rgba(255,255,255,0.06))",
-        }}
-      />
+      <div style={DIVISOR_CABECALHO} />
 
       {/* ── Indicadores ── */}
       {kpis.length > 0 && (
@@ -624,16 +553,7 @@ export function InfograficoOG({
       )}
 
       {/* ── Rodapé ── */}
-      <div
-        style={{
-          display: "flex",
-          width: "100%",
-          height: 1,
-          marginTop: 32,
-          marginBottom: 18,
-          background: "linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02))",
-        }}
-      />
+      <div style={DIVISOR_RODAPE} />
       <div style={row({ justifyContent: "space-between", alignItems: "center" })}>
         <div style={{ display: "flex", fontSize: 16, fontWeight: 800, color: C.branco, opacity: 0.35 }}>
           gestfy

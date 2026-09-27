@@ -188,13 +188,16 @@ export async function prepararDadosImagem(params: {
   ini: string;
   fim: string;
   leadsManual?: { total: number; convertidos: number };
+  /** Página 2 (feedbacks): só coleta comentários quando pedido. */
+  incluirComentarios?: boolean;
+  googleManualAvaliacoes?: AvaliacaoGoogle[];
 }): Promise<{ dados: RelatorioImagemData; erros: string[] }> {
   const h = await headers();
   if (!checkRateLimit(rateLimitKey(h), 10)) {
     return { dados: {} as RelatorioImagemData, erros: ["Limite de requisições atingido. Aguarde 1 minuto."] };
   }
 
-  const { clinicaId, ini, fim, leadsManual } = params;
+  const { clinicaId, ini, fim, leadsManual, incluirComentarios, googleManualAvaliacoes } = params;
   const erros: string[] = [];
   const db = getSupabaseAdmin();
 
@@ -288,7 +291,16 @@ export async function prepararDadosImagem(params: {
     fatAcum?.total_faturado      ?? null,   // realizadoAcumulado: dia 01 → data_fim
     fatFiltro?.por_categoria     ?? null,
     fatFiltro?.por_profissional  ?? null,
+    incluirComentarios === true,
+    googleManualAvaliacoes ?? null,
   );
+
+  if (incluirComentarios && (dados.comentarios?.length ?? 0) === 0) {
+    erros.push(
+      "Feedbacks: nenhum comentário encontrado no período (NPS e Google). " +
+      "A página de comentários não será gerada."
+    );
+  }
 
   return { dados, erros };
 }

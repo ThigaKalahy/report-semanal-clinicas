@@ -7,12 +7,14 @@ import type { ResultadoGoogle } from "@/lib/coletores/google-places";
 import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 import type { GrupoFinanceiro } from "@/lib/coletores/faturamento";
+import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
 import type {
   RelatorioImagemData,
   FaturamentoVisao,
   NpsGoogleVisao,
   ComercialVisao,
   DestaqueItem,
+  ComentarioItem,
 } from "./imagem-tipos";
 
 function fmtMoeda(v: number): string {
@@ -142,6 +144,61 @@ function buildComercial(leads: ResultadoLeads | null | undefined): ComercialVisa
   };
 }
 
+// Limite permissivo da página de feedbacks: elogio curto ("muito bom!") entra.
+// Só fica de fora o que não é comentário de verdade (vazio ou um caractere solto).
+const MIN_CARACTERES_FEEDBACK = 2;
+
+/**
+ * Junta comentários do NPS e avaliações do Google para a página 2.
+ *
+ * Privacidade: o nome vem de `resolverNomePaciente` (coletor de NPS), que já
+ * devolve "Paciente (anônimo)" quando o paciente pediu sigilo — aqui o nome
+ * original nunca é lido de novo.
+ *
+ * Classificação: NPS com nota ≤ 6 (detrator) e Google com nota ≤ 3 vão para o
+ * bloco de críticas; o resto (promotores, neutros e sem nota) fica nos elogios.
+ */
+export function buildComentarios(
+  nps: ResultadoNPS | null,
+  google: ResultadoGoogle | null,
+  googleManual?: AvaliacaoGoogle[] | null,
+): ComentarioItem[] {
+  const itens: ComentarioItem[] = [];
+
+  for (const c of nps?.comentarios ?? []) {
+    const texto = (c.comentario ?? "").trim();
+    if (texto.length < MIN_CARACTERES_FEEDBACK) continue;
+    const nota = typeof c.nota === "number" && Number.isFinite(c.nota) ? c.nota : null;
+    itens.push({
+      texto,
+      autor: (c.nome ?? "").trim() || "Paciente",
+      origem: "nps",
+      nota,
+      critica: nota !== null && nota <= 6,
+    });
+  }
+
+  // Avaliações manuais substituem as da API quando informadas (mesma regra do WhatsApp)
+  const avaliacoes = googleManual && googleManual.length > 0
+    ? googleManual
+    : google?.avaliacoes ?? [];
+
+  for (const a of avaliacoes) {
+    const texto = (a.texto ?? "").trim();
+    if (texto.length < MIN_CARACTERES_FEEDBACK) continue;
+    const nota = typeof a.nota === "number" && Number.isFinite(a.nota) ? a.nota : null;
+    itens.push({
+      texto,
+      autor: (a.autor ?? "").trim() || "Paciente",
+      origem: "google",
+      nota,
+      critica: nota !== null && nota <= 3,
+    });
+  }
+
+  return itens;
+}
+
 export function montarDadosImagem(
   clinica: Clinica,
   pre: ResultadoPreConsulta | null,
@@ -155,6 +212,8 @@ export function montarDadosImagem(
   realizadoAcumulado?: number | null,    // total do dia 01 do mês até data_fim (base dos %)
   porCategoriaFaturamento?: Record<string, GrupoFinanceiro> | null,
   porProfissionalFaturamento?: Record<string, GrupoFinanceiro> | null,
+  incluirComentarios?: boolean,                  // página 2 (feedbacks)
+  googleManualAvaliacoes?: AvaliacaoGoogle[] | null,
 ): RelatorioImagemData {
   void pre; // disponível para expansão futura
 
@@ -164,6 +223,12 @@ export function montarDadosImagem(
   const destaques   = buildDestaquesCategoria(porCategoriaFaturamento);
 
   const temSuplementar = porCategoriaFaturamento != null || porProfissionalFaturamento != null;
+
+  // Só coleta comentários quando a página de feedbacks foi pedida — evita
+  // guardar texto de paciente no relatório sem necessidade.
+  const comentarios = incluirComentarios
+    ? buildComentarios(nps, google, googleManualAvaliacoes)
+    : undefined;
 
   return {
     cabecalho: {
@@ -184,5 +249,6 @@ export function montarDadosImagem(
       por_categoria:    porCategoriaFaturamento    ?? undefined,
       por_profissional: porProfissionalFaturamento ?? undefined,
     } : undefined,
+    comentarios,
   };
 }

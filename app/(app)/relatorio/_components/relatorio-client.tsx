@@ -6,6 +6,7 @@ import {
   FileText, Copy, Check, ChevronDown, ChevronUp,
   Loader2, AlertTriangle, Plus, Trash2,
   ExternalLink, Download, Image as ImageIcon, Archive, Database, Sparkles,
+  MessageSquareQuote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,8 @@ interface ResultadoClinica {
   imagemId?:    string;
   imagemUrl?:   string;
   imagemDados?: RelatorioImagemData;
+  /** Página 2 (feedbacks) — só existe quando pedida e há comentários. */
+  comentariosUrl?: string;
 }
 
 // ─── Concurrency pool ─────────────────────────────────────────────────────────
@@ -116,6 +119,15 @@ function parseLeadsManual(
   const convertidos = parseInt(d.convertidos, 10);
   if (isNaN(total) || total < 0) return undefined;
   return { total, convertidos: isNaN(convertidos) ? 0 : Math.max(0, convertidos) };
+}
+
+function slugificar(nome: string): string {
+  return nome
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 // ─── CopyButton ───────────────────────────────────────────────────────────────
@@ -732,16 +744,55 @@ function ClinicaWhatsappCard({ resultado }: { resultado: ResultadoClinica }) {
   );
 }
 
+// ─── Uma página gerada (imagem + botões) ─────────────────────────────────────
+function PaginaImagem({
+  titulo, url, nomeArquivo, alt,
+}: {
+  titulo: string;
+  url: string;
+  nomeArquivo: string;
+  alt: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-xs font-medium text-muted-foreground">{titulo}</span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <a href={url} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-3.5 w-3.5" />Abrir
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <a href={url} download={nomeArquivo}>
+              <Download className="h-3.5 w-3.5" />Baixar PNG
+            </a>
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-lg overflow-hidden border bg-muted/30">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={alt} className="w-full max-w-sm mx-auto block" />
+      </div>
+    </div>
+  );
+}
+
 // ─── Card Imagem por clínica ──────────────────────────────────────────────────
 function ClinicaImagemCard({
-  resultado, datas, onUpdate,
+  resultado, datas, onUpdate, gerarComentarios,
 }: {
   resultado: ResultadoClinica;
   datas: { ini: string; fim: string };
   onUpdate: (r: ResultadoClinica) => void;
+  gerarComentarios: boolean;
 }) {
   const [saving, setSaving] = useState(false);
   const dados = resultado.imagemDados;
+
+  const comentarios    = dados?.comentarios ?? [];
+  const totalCriticas  = comentarios.filter(c => c.critica).length;
+  const temComentarios = comentarios.length > 0;
 
   async function handleGerar() {
     if (!dados) return;
@@ -754,22 +805,21 @@ function ClinicaImagemCard({
         dados,
         relatorioId: resultado.imagemId,
       });
+      const t = Date.now();
       onUpdate({
         ...resultado,
         imagemId:  id,
-        imagemUrl: `/api/relatorio-imagem/${id}?t=${Date.now()}`,
+        imagemUrl: `/api/relatorio-imagem/${id}?t=${t}`,
+        comentariosUrl: gerarComentarios && temComentarios
+          ? `/api/relatorio-comentarios/${id}?t=${t}`
+          : undefined,
       });
     } finally {
       setSaving(false);
     }
   }
 
-  const slugNome = resultado.clinicaNome
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const slugNome = slugificar(resultado.clinicaNome);
 
   return (
     <Card>
@@ -786,30 +836,41 @@ function ClinicaImagemCard({
           <div className="space-y-4">
             <FormImagem dados={dados} onChange={d => onUpdate({ ...resultado, imagemDados: d })} />
             <Separator />
+            {gerarComentarios && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <MessageSquareQuote className="h-3.5 w-3.5 shrink-0" />
+                {temComentarios
+                  ? `Página 2: ${comentarios.length} comentário${comentarios.length !== 1 ? "s" : ""}` +
+                    (totalCriticas > 0
+                      ? ` — ${totalCriticas} em críticas/sugestões`
+                      : " — nenhuma crítica")
+                  : "Página 2 não será gerada: nenhum comentário no período."}
+              </p>
+            )}
             <div className="flex items-center gap-3 flex-wrap">
               <Button onClick={handleGerar} disabled={saving} className="gap-2">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                {saving ? "Gerando…" : "Gerar imagem"}
+                {saving
+                  ? "Gerando…"
+                  : gerarComentarios && temComentarios ? "Gerar imagens" : "Gerar imagem"}
               </Button>
-              {resultado.imagemUrl && (<>
-                <Button variant="outline" size="sm" asChild className="gap-1.5">
-                  <a href={resultado.imagemUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-3.5 w-3.5" />Abrir
-                  </a>
-                </Button>
-                <Button variant="outline" size="sm" asChild className="gap-1.5">
-                  <a href={resultado.imagemUrl} download={`${slugNome}_${datas.ini}.png`}>
-                    <Download className="h-3.5 w-3.5" />Baixar PNG
-                  </a>
-                </Button>
-              </>)}
             </div>
+
             {resultado.imagemUrl && (
-              <div className="rounded-lg overflow-hidden border bg-muted/30">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={resultado.imagemUrl} alt={`Infográfico ${resultado.clinicaNome}`}
-                  className="w-full max-w-sm mx-auto block" />
-              </div>
+              <PaginaImagem
+                titulo="Página 1 — Infográfico"
+                url={resultado.imagemUrl}
+                nomeArquivo={`${slugNome}_${datas.ini}.png`}
+                alt={`Infográfico ${resultado.clinicaNome}`}
+              />
+            )}
+            {resultado.comentariosUrl && (
+              <PaginaImagem
+                titulo="Página 2 — Feedbacks dos pacientes"
+                url={resultado.comentariosUrl}
+                nomeArquivo={`${slugNome}_${datas.ini}_feedbacks.png`}
+                alt={`Feedbacks ${resultado.clinicaNome}`}
+              />
             )}
           </div>
         ) : resultado.erros.length > 0 ? (
@@ -846,6 +907,9 @@ export function RelatorioClient({
     () => (rea?.formato as Formato | undefined) ?? "whatsapp_pesquisas"
   );
 
+  // Página 2 opcional: feedbacks dos pacientes (NPS + Google)
+  const [gerarComentarios, setGerarComentarios] = useState(false);
+
   // Per-clinic manual data (keyed by clinicaId)
   const [googleManualMap, setGoogleManualMap] = useState<Record<string, string>>({});
   const [leadsManualMap, setLeadsManualMap]   = useState<Record<string, LeadsManualDados>>({});
@@ -863,6 +927,9 @@ export function RelatorioClient({
       imagemId:    rea.id,
       imagemUrl:   `/api/relatorio-imagem/${rea.id}`,
       imagemDados: dj as unknown as RelatorioImagemData,
+      comentariosUrl: ((dj as unknown as RelatorioImagemData).comentarios?.length ?? 0) > 0
+        ? `/api/relatorio-comentarios/${rea.id}`
+        : undefined,
     }];
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -925,6 +992,9 @@ export function RelatorioClient({
             ini: datas.ini,
             fim: datas.fim,
             leadsManual,
+            incluirComentarios: gerarComentarios,
+            googleManualAvaliacoes:
+              gerarComentarios && googleAvaliacoes.length > 0 ? googleAvaliacoes : undefined,
           })
             .then(({ dados, erros }): ResultadoClinica => ({ ...base, erros, imagemDados: dados }))
             .catch((e): ResultadoClinica => ({
@@ -969,18 +1039,24 @@ export function RelatorioClient({
       const datas = datasGeradas ?? getDatas();
 
       for (const r of comImagem) {
-        try {
-          const res  = await fetch(r.imagemUrl!);
-          const blob = await res.blob();
-          const slug = r.clinicaNome
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[̀-ͯ]/g, "")
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-|-$/g, "");
-          zip.file(`${slug}_${datas.ini}_${datas.fim}.png`, blob);
-        } catch {
-          // one failed image doesn't abort the zip
+        const slug = slugificar(r.clinicaNome);
+        const paginas: { url: string; nome: string }[] = [
+          { url: r.imagemUrl!, nome: `${slug}_${datas.ini}_${datas.fim}.png` },
+        ];
+        if (r.comentariosUrl) {
+          paginas.push({
+            url:  r.comentariosUrl,
+            nome: `${slug}_${datas.ini}_${datas.fim}_feedbacks.png`,
+          });
+        }
+        for (const pagina of paginas) {
+          try {
+            const res  = await fetch(pagina.url);
+            const blob = await res.blob();
+            zip.file(pagina.nome, blob);
+          } catch {
+            // uma imagem que falha nao aborta o zip
+          }
         }
       }
 
@@ -999,6 +1075,9 @@ export function RelatorioClient({
   }
 
   const imagensGeradas = resultados.filter(r => r.imagemUrl);
+  const totalPaginas   = imagensGeradas.reduce(
+    (acc, r) => acc + 1 + (r.comentariosUrl ? 1 : 0), 0
+  );
   const podGerar       = clinicasSel.size > 0 && !isGenerating;
   const showLeadsPanel = formato === "whatsapp_pesquisas" || formato === "imagem";
 
@@ -1082,8 +1161,34 @@ export function RelatorioClient({
             </div>
           </div>
 
-          {/* Google fallback — só para pesquisas, um painel por clínica selecionada */}
-          {formato === "whatsapp_pesquisas" && selectedClinics.length > 0 && (
+          {/* Página 2 opcional — feedbacks dos pacientes */}
+          {formato === "imagem" && (
+            <div className="space-y-2">
+              <label className={`flex items-start gap-3 rounded-md border px-3 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${
+                gerarComentarios ? "border-primary/50 bg-primary/5" : ""
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={gerarComentarios}
+                  onChange={e => setGerarComentarios(e.target.checked)}
+                  className="h-4 w-4 mt-0.5 cursor-pointer accent-[#7B099C]"
+                />
+                <span className="space-y-0.5">
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    <MessageSquareQuote className="h-3.5 w-3.5 shrink-0" />
+                    Gerar página de comentários (feedbacks)
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Gera uma segunda imagem com os comentários do NPS e as avaliações do Google.
+                    Quem pediu sigilo aparece como &quot;Paciente (anônimo)&quot;.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
+          {/* Google fallback — pesquisas sempre; imagem quando a página 2 está ligada */}
+          {(formato === "whatsapp_pesquisas" || (formato === "imagem" && gerarComentarios)) && selectedClinics.length > 0 && (
             <div className="space-y-2">
               {multiClinica && (
                 <Label className="text-sm text-muted-foreground">
@@ -1180,7 +1285,7 @@ export function RelatorioClient({
                   : <Archive className="h-3.5 w-3.5" />}
                 {isZipping
                   ? "Preparando ZIP…"
-                  : `Baixar todas (${imagensGeradas.length} imagem${imagensGeradas.length !== 1 ? "ns" : ""})`}
+                  : `Baixar todas (${totalPaginas} imagem${totalPaginas !== 1 ? "ns" : ""})`}
               </Button>
             </div>
           )}
@@ -1191,6 +1296,7 @@ export function RelatorioClient({
               <ClinicaImagemCard
                 key={r.clinicaId}
                 resultado={r}
+                gerarComentarios={gerarComentarios}
                 datas={datasGeradas ?? getDatas()}
                 onUpdate={upd =>
                   setResultados(prev => prev.map(x => x.clinicaId === upd.clinicaId ? upd : x))

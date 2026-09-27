@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { InfograficoOG, INFOGRAFICO_LARGURA } from "@/lib/relatorio/InfograficoOG";
+import { ComentariosOG, COMENTARIOS_LARGURA, temComentarios } from "@/lib/relatorio/ComentariosOG";
 import { loadFonts, loadLogoSrc } from "@/lib/relatorio/og-assets";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
 import { checkRateLimit, rateLimitKey, tooManyRequests } from "@/lib/rate-limit";
@@ -8,9 +8,9 @@ import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 
-// Largura fixa; a altura é resolvida pelo Satori a partir do conteúdo
-// (height: undefined sobrescreve o padrão 630 do ImageResponse).
-const W = INFOGRAFICO_LARGURA;
+// Página 2 do infográfico: feedbacks dos pacientes. Mesma largura da página 1,
+// altura resolvida pelo Satori a partir do conteúdo.
+const W = COMENTARIOS_LARGURA;
 
 function errResp(msg: string, status = 500) {
   return new Response(msg, {
@@ -47,20 +47,20 @@ export async function GET(
 
     const dados = relatorio.dados_json as unknown as RelatorioImagemData;
 
-    if (!dados.cabecalho || !dados.visaoGeral) {
-      return errResp(`dados_json invalido (sem cabecalho/visaoGeral): ${JSON.stringify(dados).slice(0, 200)}`, 400);
+    if (!temComentarios(dados)) {
+      return errResp(`Sem comentarios para gerar a pagina de feedbacks: id=${id}`, 404);
     }
 
     const [fonts, logoSrc] = await Promise.all([loadFonts(), loadLogoSrc()]);
 
-    return new ImageResponse(InfograficoOG({ dados, logoSrc, largura: W }), {
+    return new ImageResponse(ComentariosOG({ dados, logoSrc, largura: W }), {
       width: W,
       height: undefined,
       fonts,
     });
   } catch (err: unknown) {
     const e = err instanceof Error ? err : new Error(String(err));
-    console.error(`[relatorio-imagem] CRASH id=${id}`, e);
+    console.error(`[relatorio-comentarios] CRASH id=${id}`, e);
     return errResp(e.stack ?? e.message);
   }
 }

@@ -6,6 +6,15 @@ import type { ResultadoGoogle, AvaliacaoGoogle } from "@/lib/coletores/google-pl
 import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 
+// Limite de relevância deste relatório: comentários mais curtos que isto não
+// entram no WhatsApp. O coletor devolve todos os comentários não vazios — o
+// corte é de quem consome, e a página de feedbacks do infográfico usa um limite
+// mais permissivo, para não descartar elogios curtos ("muito bom!").
+// Declarado aqui (e não em nps.ts) porque este módulo também é importado pelo
+// componente de cliente: importar um valor do coletor arrastaria o googleapis
+// para o bundle do navegador.
+const MIN_CARACTERES_COMENTARIO = 35;
+
 export const SEPARATOR = "—- ENVIAR SEPARADO";
 
 function fmtDate(d: Date): string {
@@ -123,10 +132,14 @@ function blocoNPS(nps: ResultadoNPS): string {
     }
   }
 
-  if (nps.comentarios.length > 0) {
+  // O coletor devolve todos os comentários; aqui fica o corte de relevância do WhatsApp.
+  const comentariosRelevantes = nps.comentarios.filter(
+    (c) => c.comentario.length >= MIN_CARACTERES_COMENTARIO
+  );
+  if (comentariosRelevantes.length > 0) {
     lines.push("");
     lines.push(`💬 Comentários relevantes:`);
-    for (const { nome, comentario } of nps.comentarios) {
+    for (const { nome, comentario } of comentariosRelevantes) {
       lines.push(`${nome.toUpperCase()}: "${comentario}"`);
     }
   }
