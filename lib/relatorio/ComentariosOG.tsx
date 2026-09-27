@@ -282,43 +282,17 @@ export function ComentariosOG({
         </div>
       )}
 
-      {/* ── Críticas / Sugestões ── */}
-      <div style={col({ marginTop: elogios.length > 0 ? 32 : 0 })}>
-        <SecaoTitulo label="Críticas / Sugestões" cor={C.vermelho} />
-        {criticas.length > 0 ? (
+      {/* ── Críticas / Sugestões (some quando não há nenhuma) ── */}
+      {criticas.length > 0 && (
+        <div style={col({ marginTop: elogios.length > 0 ? 32 : 0 })}>
+          <SecaoTitulo label="Críticas / Sugestões" cor={C.vermelho} />
           <div style={col({ gap: 12 })}>
             {criticas.map((c, i) => (
               <ComentarioCard key={i} item={c} />
             ))}
           </div>
-        ) : (
-          <div
-            style={row({
-              gap: 16,
-              alignItems: "center",
-              background: C.card,
-              borderWidth: 1,
-              borderStyle: "solid",
-              borderColor: C.cardBorda,
-              borderRadius: 14,
-              paddingTop: 18,
-              paddingBottom: 18,
-              paddingLeft: 20,
-              paddingRight: 20,
-            })}
-          >
-            <Avatar />
-            <div style={col({ flex: 1, minWidth: 0, gap: 6 })}>
-              <div style={{ display: "flex", fontSize: FONTE_TEXTO, color: C.branco, lineHeight: 1.5 }}>
-                Nenhuma crítica registrada nesta pesquisa.
-              </div>
-              <div style={{ display: "flex", fontSize: 18, fontWeight: 600, color: C.roxo }}>
-                Continuem assim!
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Rodapé ── */}
       <div style={DIVISOR_RODAPE} />
