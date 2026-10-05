@@ -27,6 +27,11 @@ import type {
   FaturamentoVisao, NpsGoogleVisao,
 } from "@/lib/relatorio/imagem-tipos";
 import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
+import type { ComentarioItem } from "@/lib/relatorio/imagem-tipos";
+import {
+  filtrarComentarios, parsePalavras, parseLimite, filtroAtivo,
+} from "@/lib/relatorio/filtrar-comentarios";
+import type { FiltroComentarios } from "@/lib/relatorio/filtrar-comentarios";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Preset  = "semana_passada" | "ultimos7" | "custom";
@@ -35,6 +40,27 @@ type Formato = "whatsapp_pesquisas" | "whatsapp_metas" | "imagem";
 interface LeadsManualDados {
   total:      string;
   convertidos: string;
+}
+
+/** Campos do filtro como texto, do jeito que o formulário guarda. */
+interface FiltroForm {
+  maxComentarios: string;
+  minPalavras:    string;
+  maxPalavras:    string;
+  palavras:       string;
+}
+
+const FILTRO_FORM_VAZIO: FiltroForm = {
+  maxComentarios: "", minPalavras: "", maxPalavras: "", palavras: "",
+};
+
+function formParaFiltro(f: FiltroForm): FiltroComentarios {
+  return {
+    maxComentarios: parseLimite(f.maxComentarios),
+    minPalavras:    parseLimite(f.minPalavras),
+    maxPalavras:    parseLimite(f.maxPalavras),
+    palavras:       parsePalavras(f.palavras),
+  };
 }
 
 interface ResultadoClinica {
@@ -47,6 +73,11 @@ interface ResultadoClinica {
   imagemDados?: RelatorioImagemData;
   /** Página 2 (feedbacks) — só existe quando pedida e há comentários. */
   comentariosUrl?: string;
+  /**
+   * Índices de `imagemDados.comentarios` que vão para a página 2.
+   * `undefined` = ainda não escolhido (vale tudo que foi coletado).
+   */
+  comentariosSel?: number[];
 }
 
 // ─── Concurrency pool ─────────────────────────────────────────────────────────
@@ -744,6 +775,155 @@ function ClinicaWhatsappCard({ resultado }: { resultado: ResultadoClinica }) {
   );
 }
 
+// ─── Painel de filtros da página de feedbacks ────────────────────────────────
+function FiltroComentariosPanel({
+  filtro, onChange,
+}: {
+  filtro: FiltroForm;
+  onChange: (f: FiltroForm) => void;
+}) {
+  const campos: { chave: keyof FiltroForm; label: string; placeholder: string }[] = [
+    { chave: "maxComentarios", label: "Máximo de comentários", placeholder: "Todos" },
+    { chave: "minPalavras",    label: "Mínimo de palavras",    placeholder: "Sem mínimo" },
+    { chave: "maxPalavras",    label: "Máximo de palavras",    placeholder: "Sem máximo" },
+  ];
+
+  const limpo =
+    filtro.maxComentarios === "" && filtro.minPalavras === "" &&
+    filtro.maxPalavras === ""    && filtro.palavras === "";
+
+  return (
+    <div className="rounded-md border bg-muted/30 px-4 py-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Filtros opcionais — definem quais comentários já vêm marcados. Você ajusta
+          um a um na lista depois de coletar os dados.
+        </p>
+        {!limpo && (
+          <Button type="button" variant="ghost" size="sm" className="text-xs h-7 shrink-0"
+            onClick={() => onChange(FILTRO_FORM_VAZIO)}>
+            Limpar filtros
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {campos.map(({ chave, label, placeholder }) => (
+          <div key={chave} className="space-y-1">
+            <Label className="text-xs">{label}</Label>
+            <Input
+              type="number" min="1" inputMode="numeric"
+              value={filtro[chave]}
+              placeholder={placeholder}
+              onChange={e => onChange({ ...filtro, [chave]: e.target.value })}
+              className="text-sm"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Contém alguma destas palavras</Label>
+        <Input
+          value={filtro.palavras}
+          placeholder="Ex: médico, acolhimento, recepção — separe por vírgula"
+          onChange={e => onChange({ ...filtro, palavras: e.target.value })}
+          className="text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Lista de comentários com seleção ────────────────────────────────────────
+function ListaComentarios({
+  comentarios, selecionados, onChange, filtroLigado,
+}: {
+  comentarios: ComentarioItem[];
+  selecionados: number[];
+  onChange: (sel: number[]) => void;
+  filtroLigado: boolean;
+}) {
+  const sel = new Set(selecionados);
+  const todosMarcados = comentarios.length > 0 && sel.size === comentarios.length;
+
+  function alternar(i: number) {
+    const novo = new Set(sel);
+    if (novo.has(i)) novo.delete(i); else novo.add(i);
+    onChange([...novo].sort((a, b) => a - b));
+  }
+
+  function alternarTodos() {
+    onChange(todosMarcados ? [] : comentarios.map((_, i) => i));
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={todosMarcados}
+            onChange={alternarTodos}
+            className="h-4 w-4 cursor-pointer accent-[#7B099C]"
+          />
+          <span className="text-sm font-medium">
+            {todosMarcados ? "Desmarcar todos" : "Selecionar todos"}
+          </span>
+        </label>
+        <span className="text-xs text-muted-foreground">
+          {sel.size} de {comentarios.length} selecionado{sel.size !== 1 ? "s" : ""}
+          {filtroLigado ? " (pré-seleção pelo filtro)" : ""}
+        </span>
+      </div>
+
+      <div className="max-h-80 overflow-y-auto rounded-md border divide-y">
+        {comentarios.map((c, i) => {
+          const marcado = sel.has(i);
+          return (
+            <label
+              key={i}
+              className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                marcado ? "bg-primary/5" : "hover:bg-muted/50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={marcado}
+                onChange={() => alternar(i)}
+                className="h-4 w-4 mt-0.5 shrink-0 cursor-pointer accent-[#7B099C]"
+              />
+              <span className="min-w-0 flex-1 space-y-1">
+                <span className={`block text-sm leading-snug ${marcado ? "" : "text-muted-foreground"}`}>
+                  {c.texto}
+                </span>
+                <span className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                  <span className="font-medium">{c.autor}</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 uppercase tracking-wide">
+                    {c.origem === "google" ? "Google" : "NPS"}
+                    {c.nota !== null ? ` · ${c.nota}` : ""}
+                  </span>
+                  {c.critica && (
+                    <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5">
+                      crítica
+                    </span>
+                  )}
+                  <span>{contarPalavrasTexto(c.texto)} palavras</span>
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function contarPalavrasTexto(texto: string): number {
+  const limpo = (texto ?? "").trim();
+  return limpo ? limpo.split(/\s+/).length : 0;
+}
+
 // ─── Uma página gerada (imagem + botões) ─────────────────────────────────────
 function PaginaImagem({
   titulo, url, nomeArquivo, alt,
@@ -780,29 +960,40 @@ function PaginaImagem({
 
 // ─── Card Imagem por clínica ──────────────────────────────────────────────────
 function ClinicaImagemCard({
-  resultado, datas, onUpdate, gerarComentarios,
+  resultado, datas, onUpdate, gerarComentarios, filtroLigado,
 }: {
   resultado: ResultadoClinica;
   datas: { ini: string; fim: string };
   onUpdate: (r: ResultadoClinica) => void;
   gerarComentarios: boolean;
+  filtroLigado: boolean;
 }) {
   const [saving, setSaving] = useState(false);
   const dados = resultado.imagemDados;
 
-  const comentarios    = dados?.comentarios ?? [];
-  const totalCriticas  = comentarios.filter(c => c.critica).length;
-  const temComentarios = comentarios.length > 0;
+  const comentarios = dados?.comentarios ?? [];
+  // Seleção ainda não definida (ex: relatório reaberto) = tudo que foi coletado.
+  const selecionados = resultado.comentariosSel ?? comentarios.map((_, i) => i);
+  const escolhidos   = selecionados
+    .filter(i => i >= 0 && i < comentarios.length)
+    .map(i => comentarios[i]);
+  const totalCriticas  = escolhidos.filter(c => c.critica).length;
+  const temComentarios = escolhidos.length > 0;
 
   async function handleGerar() {
     if (!dados) return;
     setSaving(true);
     try {
+      // Só os comentários marcados vão para o relatório — os demais nem são salvos.
+      const dadosParaSalvar = gerarComentarios
+        ? { ...dados, comentarios: escolhidos }
+        : { ...dados, comentarios: undefined };
+
       const { id } = await salvarRelatorioImagem({
         clinicaId:   resultado.clinicaId,
         ini:         datas.ini,
         fim:         datas.fim,
-        dados,
+        dados:       dadosParaSalvar,
         relatorioId: resultado.imagemId,
       });
       const t = Date.now();
@@ -837,15 +1028,39 @@ function ClinicaImagemCard({
             <FormImagem dados={dados} onChange={d => onUpdate({ ...resultado, imagemDados: d })} />
             <Separator />
             {gerarComentarios && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <MessageSquareQuote className="h-3.5 w-3.5 shrink-0" />
-                {temComentarios
-                  ? `Página 2: ${comentarios.length} comentário${comentarios.length !== 1 ? "s" : ""}` +
-                    (totalCriticas > 0
-                      ? ` — ${totalCriticas} em críticas/sugestões`
-                      : " — nenhuma crítica")
-                  : "Página 2 não será gerada: nenhum comentário no período."}
-              </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <MessageSquareQuote className="h-3.5 w-3.5 shrink-0" />
+                    Página 2 — comentários
+                  </h3>
+                  {temComentarios && (
+                    <span className="text-xs text-muted-foreground">
+                      {totalCriticas > 0
+                        ? `${totalCriticas} em críticas/sugestões`
+                        : "nenhuma crítica"}
+                    </span>
+                  )}
+                </div>
+
+                {comentarios.length > 0 ? (<>
+                  <ListaComentarios
+                    comentarios={comentarios}
+                    selecionados={selecionados}
+                    filtroLigado={filtroLigado}
+                    onChange={sel => onUpdate({ ...resultado, comentariosSel: sel })}
+                  />
+                  {!temComentarios && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum comentário marcado — a página 2 não será gerada.
+                    </p>
+                  )}
+                </>) : (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum comentário no período — a página 2 não será gerada.
+                  </p>
+                )}
+              </div>
             )}
             <div className="flex items-center gap-3 flex-wrap">
               <Button onClick={handleGerar} disabled={saving} className="gap-2">
@@ -909,6 +1124,7 @@ export function RelatorioClient({
 
   // Página 2 opcional: feedbacks dos pacientes (NPS + Google)
   const [gerarComentarios, setGerarComentarios] = useState(false);
+  const [filtroForm, setFiltroForm] = useState<FiltroForm>(FILTRO_FORM_VAZIO);
 
   // Per-clinic manual data (keyed by clinicaId)
   const [googleManualMap, setGoogleManualMap] = useState<Record<string, string>>({});
@@ -930,6 +1146,8 @@ export function RelatorioClient({
       comentariosUrl: ((dj as unknown as RelatorioImagemData).comentarios?.length ?? 0) > 0
         ? `/api/relatorio-comentarios/${rea.id}`
         : undefined,
+      comentariosSel: ((dj as unknown as RelatorioImagemData).comentarios ?? [])
+        .map((_, i) => i),
     }];
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -945,6 +1163,20 @@ export function RelatorioClient({
     if (preset === "semana_passada") return semanaPassada();
     if (preset === "ultimos7")       return ultimos7Dias();
     return { ini: customIni, fim: customFim };
+  }
+
+  /**
+   * O filtro define a pré-seleção: ao mexer nele, as marcações de todas as
+   * clínicas já coletadas são recalculadas (escolhas manuais são substituídas).
+   */
+  function atualizarFiltro(novo: FiltroForm) {
+    setFiltroForm(novo);
+    const filtro = formParaFiltro(novo);
+    setResultados(prev => prev.map(r =>
+      r.imagemDados
+        ? { ...r, comentariosSel: filtrarComentarios(r.imagemDados.comentarios ?? [], filtro) }
+        : r
+    ));
   }
 
   function toggleClinica(id: string) {
@@ -996,7 +1228,12 @@ export function RelatorioClient({
             googleManualAvaliacoes:
               gerarComentarios && googleAvaliacoes.length > 0 ? googleAvaliacoes : undefined,
           })
-            .then(({ dados, erros }): ResultadoClinica => ({ ...base, erros, imagemDados: dados }))
+            .then(({ dados, erros }): ResultadoClinica => ({
+              ...base,
+              erros,
+              imagemDados: dados,
+              comentariosSel: filtrarComentarios(dados.comentarios ?? [], formParaFiltro(filtroForm)),
+            }))
             .catch((e): ResultadoClinica => ({
               ...base,
               erros: [`Erro ao coletar dados: ${e instanceof Error ? e.message : String(e)}`],
@@ -1184,6 +1421,10 @@ export function RelatorioClient({
                   </span>
                 </span>
               </label>
+
+              {gerarComentarios && (
+                <FiltroComentariosPanel filtro={filtroForm} onChange={atualizarFiltro} />
+              )}
             </div>
           )}
 
@@ -1297,6 +1538,7 @@ export function RelatorioClient({
                 key={r.clinicaId}
                 resultado={r}
                 gerarComentarios={gerarComentarios}
+                filtroLigado={filtroAtivo(formParaFiltro(filtroForm))}
                 datas={datasGeradas ?? getDatas()}
                 onUpdate={upd =>
                   setResultados(prev => prev.map(x => x.clinicaId === upd.clinicaId ? upd : x))
