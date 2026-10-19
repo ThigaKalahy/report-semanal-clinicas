@@ -35,26 +35,20 @@ export interface ResultadoCheckpointClinica {
   erros: string[];
 }
 
-function parseData(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-}
-
 /**
  * Roda o checkpoint de uma clínica.
  *
- * A frescura do dado é comparada com HOJE — não com o fim do período. O período
- * escolhido serve para a checagem de categoria e para contextualizar a leitura:
- * se a comparação fosse com o fim de uma semana passada, uma planilha parada há
- * um mês apareceria em dia.
+ * Não há período a escolher: o checkpoint sempre olha de hoje para trás. O
+ * atraso do lançamento é medido em dias úteis até hoje, e a conferência de
+ * categoria cobre o mês corrente (do dia 01 até hoje) — mesma janela que o
+ * relatório usa no acumulado do mês, então uma categoria em branco no começo
+ * do mês não passa despercebida.
  */
 export async function rodarCheckpointClinica(params: {
   clinicaId: string;
-  ini: string;
-  fim: string;
 }): Promise<ResultadoCheckpointClinica> {
   const h = await headers();
-  const { clinicaId, ini, fim } = params;
+  const { clinicaId } = params;
 
   const base: ResultadoCheckpointClinica = {
     clinicaId, clinicaNome: "", indicadores: [], semIndicadores: false, erros: [],
@@ -85,9 +79,9 @@ export async function rodarCheckpointClinica(params: {
     return { ...base, clinicaNome: nome, semIndicadores: true };
   }
 
-  const dataIni = parseData(ini);
-  const dataFim = parseData(fim);
   const hoje    = new Date();
+  const dataFim = hoje;
+  const dataIni = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
   const indicadores = await Promise.all(
     ativos.map(async (indicador): Promise<ResultadoIndicador> => {

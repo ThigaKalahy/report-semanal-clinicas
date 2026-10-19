@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { format } from "date-fns";
 import {
-  FileText, Copy, Check, ChevronDown, ChevronUp,
+  FileText, ChevronDown, ChevronUp,
   Loader2, AlertTriangle, Plus, Trash2,
   ExternalLink, Download, Image as ImageIcon, Archive, Database, Sparkles,
   MessageSquareQuote,
@@ -28,6 +28,7 @@ import type {
 } from "@/lib/relatorio/imagem-tipos";
 import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
 import { withConcurrency } from "@/lib/concorrencia";
+import { CopyButton } from "@/components/copy-button";
 import {
   SelecaoClinicas, SelecaoPeriodo, resolverPeriodo,
 } from "@/components/selecao-clinicas-periodo";
@@ -122,22 +123,6 @@ function slugificar(nome: string): string {
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-}
-
-// ─── CopyButton ───────────────────────────────────────────────────────────────
-function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button variant="outline" size="sm" className="gap-2 shrink-0"
-      onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }}>
-      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? "Copiado!" : label}
-    </Button>
-  );
 }
 
 // ─── Lista editável ───────────────────────────────────────────────────────────

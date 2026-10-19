@@ -4,18 +4,17 @@ import { useState } from "react";
 import { format } from "date-fns";
 import {
   ClipboardCheck, Loader2, AlertTriangle, CheckCircle2, CircleAlert,
-  Settings2, PencilLine, CalendarClock,
+  Settings2, PencilLine, CalendarClock, Image as ImageIcon, Download, ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { CopyButton } from "@/components/copy-button";
 import { withConcurrency } from "@/lib/concorrencia";
-import {
-  SelecaoClinicas, SelecaoPeriodo, resolverPeriodo,
-} from "@/components/selecao-clinicas-periodo";
-import type { Preset } from "@/components/selecao-clinicas-periodo";
+import { SelecaoClinicas } from "@/components/selecao-clinicas-periodo";
+import { montarTextoCheckpoint, resumoStatus } from "@/lib/checkpoint/montar-texto";
 import { rodarCheckpointClinica } from "../actions";
 import type { ResultadoCheckpointClinica, ResultadoIndicador } from "../actions";
 import type { StatusCheckpoint } from "@/lib/checkpoint/avaliar";
@@ -28,12 +27,6 @@ interface LinhaIndicador extends ResultadoIndicador {
 
 interface LinhaClinica extends Omit<ResultadoCheckpointClinica, "indicadores"> {
   indicadores: LinhaIndicador[];
-}
-
-function dataBR(iso: string): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  return d && m && y ? `${d}/${m}/${y}` : "";
 }
 
 // ─── Botão de status (✅ / ⚠️), sempre editável ───────────────────────────────
@@ -100,7 +93,7 @@ function ClinicaCheckpointCard({
               {totalAtencao > 0
                 ? `${totalAtencao} ponto${totalAtencao !== 1 ? "s" : ""} de atenção`
                 : totalBranco > 0
-                  ? `${totalBranco} a preencher`
+                  ? `${totalBranco} a confirmar`
                   : "tudo em dia"}
             </span>
           )}
@@ -175,14 +168,15 @@ function ClinicaCheckpointCard({
 // ─── Tela ─────────────────────────────────────────────────────────────────────
 export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
   const [clinicasSel, setClinicasSel] = useState<Set<string>>(new Set());
-  const [preset, setPreset]           = useState<Preset>("ultimos7");
-  const [customIni, setCustomIni]     = useState(format(new Date(), "yyyy-MM-dd"));
-  const [customFim, setCustomFim]     = useState(format(new Date(), "yyyy-MM-dd"));
 
   const [rodando, setRodando]     = useState(false);
   const [progresso, setProgresso] = useState<{ done: number; total: number } | null>(null);
   const [linhas, setLinhas]       = useState<LinhaClinica[]>([]);
-  const [periodoRodado, setPeriodoRodado] = useState<{ ini: string; fim: string } | null>(null);
+  const [rodadoEm, setRodadoEm]   = useState<Date | null>(null);
+
+  const [gerandoImagem, setGerandoImagem] = useState(false);
+  const [imagemUrl, setImagemUrl]         = useState<string | null>(null);
+  const [erroImagem, setErroImagem]       = useState<string | null>(null);
 
   function toggleClinica(id: string) {
     setClinicasSel(prev => {
@@ -199,14 +193,23 @@ export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
     );
   }
 
+  /** A imagem antiga deixa de valer assim que algo muda na tela. */
+  function invalidarImagem() {
+    setImagemUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setErroImagem(null);
+  }
+
   async function handleRodar() {
     const ids = clinicas.filter(c => clinicasSel.has(c.id)).map(c => c.id);
     if (!ids.length) return;
 
-    const periodo = resolverPeriodo(preset, customIni, customFim);
     setRodando(true);
     setLinhas([]);
-    setPeriodoRodado(periodo);
+    invalidarImagem();
+    setRodadoEm(new Date());
 
     let done = 0;
     setProgresso({ done: 0, total: ids.length });
@@ -214,7 +217,7 @@ export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
     const tasks = ids.map(id => async (): Promise<LinhaClinica> => {
       const nome = clinicas.find(c => c.id === id)?.nome ?? "";
       try {
-        const r = await rodarCheckpointClinica({ clinicaId: id, ini: periodo.ini, fim: periodo.fim });
+        const r = await rodarCheckpointClinica({ clinicaId: id });
         return {
           ...r,
           clinicaNome: r.clinicaNome || nome,
@@ -241,8 +244,60 @@ export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
     setProgresso(null);
   }
 
+  // Mantém a ordem da lista de clínicas, não a de chegada das respostas
+  const linhasOrdenadas = clinicas
+    .map(c => linhas.find(l => l.clinicaId === c.id))
+    .filter((l): l is LinhaClinica => l !== undefined);
+
+  const dataRef = rodadoEm ?? new Date();
+  const texto   = linhasOrdenadas.length > 0
+    ? montarTextoCheckpoint(linhasOrdenadas, dataRef)
+    : "";
+  const resumo  = resumoStatus(linhasOrdenadas);
+
+  async function handleGerarImagem() {
+    setGerandoImagem(true);
+    setErroImagem(null);
+    try {
+      const corpo = {
+        data: format(dataRef, "dd/MM/yyyy"),
+        clinicas: linhasOrdenadas.map(l => ({
+          clinicaNome: l.clinicaNome,
+          semIndicadores: l.semIndicadores,
+          indicadores: l.indicadores.map(i => ({
+            label: i.label,
+            status: i.status,
+            observacao: i.observacao,
+          })),
+        })),
+      };
+
+      const res = await fetch("/api/checkpoint-imagem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo),
+      });
+
+      if (!res.ok) {
+        setErroImagem(await res.text());
+        return;
+      }
+
+      const blob = await res.blob();
+      setImagemUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(blob);
+      });
+    } catch (e) {
+      setErroImagem(e instanceof Error ? e.message : "Erro ao gerar a imagem.");
+    } finally {
+      setGerandoImagem(false);
+    }
+  }
+
   const podeRodar = clinicasSel.size > 0 && !rodando;
   const hojeBR    = format(new Date(), "dd/MM/yyyy");
+  const temResultado = linhasOrdenadas.length > 0;
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -266,20 +321,11 @@ export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
             onToggleTodas={toggleTodas}
           />
 
-          <SelecaoPeriodo
-            preset={preset}
-            onPreset={setPreset}
-            customIni={customIni}
-            onCustomIni={setCustomIni}
-            customFim={customFim}
-            onCustomFim={setCustomFim}
-          />
-
           <p className="text-xs text-muted-foreground">
-            O período filtra a conferência de categoria. O atraso do lançamento é sempre
-            comparado com hoje ({hojeBR}), em dias úteis, descontando feriados —
-            até 2 dias úteis para faturamento e despesas (lançamento diário) e até 5
-            para leads, fechamentos e NPS (basta um na semana).
+            O checkpoint sempre olha de hoje ({hojeBR}) para trás, em dias úteis, descontando
+            feriados — até 2 dias úteis para faturamento e despesas (lançamento diário) e até 5
+            para leads, fechamentos e NPS (basta um na semana). A conferência de categoria cobre
+            o mês corrente.
           </p>
 
           <Separator />
@@ -301,7 +347,7 @@ export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
       </Card>
 
       {/* ── Resultados ── */}
-      {(linhas.length > 0 || rodando) && (
+      {(temResultado || rodando) && (
         <div className="space-y-4">
           {rodando && progresso && (
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -314,21 +360,98 @@ export function CheckpointClient({ clinicas }: { clinicas: Clinica[] }) {
             </div>
           )}
 
-          {periodoRodado && !rodando && (
-            <p className="text-xs text-muted-foreground">
-              Período conferido: {dataBR(periodoRodado.ini)} até {dataBR(periodoRodado.fim)}
-            </p>
-          )}
-
-          {linhas.map(l => (
+          {linhasOrdenadas.map(l => (
             <ClinicaCheckpointCard
               key={l.clinicaId}
               linha={l}
-              onUpdate={upd =>
-                setLinhas(prev => prev.map(x => x.clinicaId === upd.clinicaId ? upd : x))
-              }
+              onUpdate={upd => {
+                invalidarImagem();
+                setLinhas(prev => prev.map(x => x.clinicaId === upd.clinicaId ? upd : x));
+              }}
             />
           ))}
+
+          {/* ── Saídas: texto e imagem ── */}
+          {temResultado && !rodando && (
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <CardTitle className="text-base">Enviar</CardTitle>
+                  <span className="text-xs text-muted-foreground">
+                    {resumo.ok} em dia · {resumo.atencao} atenção
+                    {resumo.branco > 0 ? ` · ${resumo.branco} a confirmar` : ""}
+                  </span>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-5">
+                {/* Texto para WhatsApp */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-sm font-medium">Texto para WhatsApp</span>
+                    <CopyButton text={texto} label="Copiar texto" />
+                  </div>
+                  <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed bg-muted/50 rounded-md p-4 max-h-80 overflow-y-auto">
+                    {texto}
+                  </pre>
+                </div>
+
+                <Separator />
+
+                {/* Infográfico */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-sm font-medium">Infográfico</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handleGerarImagem}
+                        disabled={gerandoImagem}
+                        variant={imagemUrl ? "outline" : "default"}
+                        size="sm"
+                        className="gap-1.5"
+                      >
+                        {gerandoImagem
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <ImageIcon className="h-3.5 w-3.5" />}
+                        {gerandoImagem ? "Gerando…" : imagemUrl ? "Gerar de novo" : "Gerar infográfico"}
+                      </Button>
+                      {imagemUrl && (<>
+                        <Button variant="outline" size="sm" asChild className="gap-1.5">
+                          <a href={imagemUrl} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3.5 w-3.5" />Abrir
+                          </a>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild className="gap-1.5">
+                          <a href={imagemUrl} download={`checkpoint_${format(dataRef, "dd-MM-yyyy")}.png`}>
+                            <Download className="h-3.5 w-3.5" />Baixar PNG
+                          </a>
+                        </Button>
+                      </>)}
+                    </div>
+                  </div>
+
+                  {erroImagem && (
+                    <p className="flex items-start gap-1.5 text-sm text-destructive">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />{erroImagem}
+                    </p>
+                  )}
+
+                  {imagemUrl ? (
+                    <div className="rounded-lg overflow-hidden border bg-muted/30">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imagemUrl} alt="Infográfico do checkpoint"
+                        className="w-full max-w-sm mx-auto block" />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Uma imagem com todas as clínicas conferidas, no visual Gestfy. Editou algum
+                      status acima? Gere de novo para a imagem acompanhar.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
