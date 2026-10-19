@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Database, Target, Trash2 } from "lucide-react";
+import { Plus, Pencil, Database, Target, Trash2, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -188,6 +188,11 @@ export function ClinicasClient({ clinicas }: Props) {
                       <Button variant="ghost" size="icon" className="h-8 w-8" title="Metas" asChild>
                         <Link href={`/clinicas/${c.id}/metas`}>
                           <Target className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Indicadores do checkpoint" asChild>
+                        <Link href={`/clinicas/${c.id}/checkpoint`}>
+                          <ClipboardCheck className="h-3.5 w-3.5" />
                         </Link>
                       </Button>
                       <Button

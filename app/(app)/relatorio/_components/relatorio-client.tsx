@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { format, subDays, subWeeks, startOfWeek, endOfWeek } from "date-fns";
+import { format } from "date-fns";
 import {
   FileText, Copy, Check, ChevronDown, ChevronUp,
   Loader2, AlertTriangle, Plus, Trash2,
@@ -27,6 +27,11 @@ import type {
   FaturamentoVisao, NpsGoogleVisao,
 } from "@/lib/relatorio/imagem-tipos";
 import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
+import { withConcurrency } from "@/lib/concorrencia";
+import {
+  SelecaoClinicas, SelecaoPeriodo, resolverPeriodo,
+} from "@/components/selecao-clinicas-periodo";
+import type { Preset } from "@/components/selecao-clinicas-periodo";
 import type { ComentarioItem } from "@/lib/relatorio/imagem-tipos";
 import {
   filtrarComentarios, parsePalavras, parseLimite, filtroAtivo,
@@ -34,7 +39,6 @@ import {
 import type { FiltroComentarios } from "@/lib/relatorio/filtrar-comentarios";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Preset  = "semana_passada" | "ultimos7" | "custom";
 type Formato = "whatsapp_pesquisas" | "whatsapp_metas" | "imagem";
 
 interface LeadsManualDados {
@@ -79,47 +83,6 @@ interface ResultadoClinica {
    */
   comentariosSel?: number[];
 }
-
-// ─── Concurrency pool ─────────────────────────────────────────────────────────
-async function withConcurrency<T>(
-  tasks: Array<() => Promise<T>>,
-  limit: number,
-  onComplete: (result: T) => void
-): Promise<void> {
-  if (!tasks.length) return;
-  const queue = [...tasks];
-
-  async function worker() {
-    while (queue.length > 0) {
-      const task = queue.shift()!;
-      const result = await task();
-      onComplete(result);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
-  );
-}
-
-// ─── Dates ───────────────────────────────────────────────────────────────────
-function semanaPassada() {
-  const l = subWeeks(new Date(), 1);
-  return {
-    ini: format(startOfWeek(l, { weekStartsOn: 1 }), "yyyy-MM-dd"),
-    fim: format(endOfWeek(l, { weekStartsOn: 1 }), "yyyy-MM-dd"),
-  };
-}
-function ultimos7Dias() {
-  const t = new Date();
-  return { ini: format(subDays(t, 6), "yyyy-MM-dd"), fim: format(t, "yyyy-MM-dd") };
-}
-
-const PRESET_LABELS: Record<Preset, string> = {
-  semana_passada: "Semana passada (seg–dom)",
-  ultimos7:       "Últimos 7 dias",
-  custom:         "Personalizado",
-};
 
 const FORMATO_OPTIONS: { value: Formato; label: string }[] = [
   { value: "whatsapp_pesquisas", label: "WhatsApp — Pesquisas" },
@@ -1160,9 +1123,7 @@ export function RelatorioClient({
   const [isZipping, setIsZipping]     = useState(false);
 
   function getDatas(): { ini: string; fim: string } {
-    if (preset === "semana_passada") return semanaPassada();
-    if (preset === "ultimos7")       return ultimos7Dias();
-    return { ini: customIni, fim: customFim };
+    return resolverPeriodo(preset, customIni, customFim);
   }
 
   /**
@@ -1329,59 +1290,21 @@ export function RelatorioClient({
         </CardHeader>
         <CardContent className="space-y-5">
 
-          {/* Seleção de clínicas */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>
-                Clínicas{" "}
-                <span className="text-muted-foreground text-sm font-normal">
-                  ({clinicasSel.size} de {clinicas.length} selecionada{clinicasSel.size !== 1 ? "s" : ""})
-                </span>
-              </Label>
-              <Button type="button" variant="ghost" size="sm" className="text-xs h-7" onClick={toggleAll}>
-                {clinicasSel.size === clinicas.length ? "Desmarcar todas" : "Selecionar todas"}
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {clinicas.map(c => (
-                <label key={c.id}
-                  className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors ${
-                    clinicasSel.has(c.id) ? "border-primary/50 bg-primary/5" : ""
-                  }`}>
-                  <input type="checkbox" checked={clinicasSel.has(c.id)}
-                    onChange={() => toggleClinica(c.id)}
-                    className="h-4 w-4 cursor-pointer accent-[#7B099C]" />
-                  <span className="text-sm truncate">{c.nome}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <SelecaoClinicas
+            clinicas={clinicas}
+            selecionadas={clinicasSel}
+            onToggle={toggleClinica}
+            onToggleTodas={toggleAll}
+          />
 
-          {/* Período */}
-          <div className="space-y-2">
-            <Label>Período</Label>
-            <div className="flex flex-wrap gap-2">
-              {(["semana_passada", "ultimos7", "custom"] as Preset[]).map(p => (
-                <Button key={p} type="button"
-                  variant={preset === p ? "default" : "outline"}
-                  size="sm" onClick={() => setPreset(p)}>
-                  {PRESET_LABELS[p]}
-                </Button>
-              ))}
-            </div>
-            {preset === "custom" && (
-              <div className="flex items-end gap-3 pt-1">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">De</Label>
-                  <Input type="date" value={customIni} onChange={e => setCustomIni(e.target.value)} className="w-40" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Até</Label>
-                  <Input type="date" value={customFim} onChange={e => setCustomFim(e.target.value)} className="w-40" />
-                </div>
-              </div>
-            )}
-          </div>
+          <SelecaoPeriodo
+            preset={preset}
+            onPreset={setPreset}
+            customIni={customIni}
+            onCustomIni={setCustomIni}
+            customFim={customFim}
+            onCustomFim={setCustomFim}
+          />
 
           {/* Formato */}
           <div className="space-y-2">

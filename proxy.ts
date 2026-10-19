@@ -10,6 +10,7 @@ function isProtected(pathname: string): boolean {
   return (
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/clinicas") ||
+    pathname.startsWith("/checkpoint") ||
     pathname.startsWith("/relatorio") ||
     pathname.startsWith("/configuracoes") ||
     (pathname.startsWith("/api/") && !pathname.startsWith("/api/auth/"))

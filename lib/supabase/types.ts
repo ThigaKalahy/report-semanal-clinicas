@@ -157,6 +157,32 @@ export interface Database {
         };
         Relationships: [];
       };
+      checkpoint_indicadores: {
+        Row: {
+          id: string;
+          clinica_id: string;
+          indicador: "leads" | "fechamentos" | "nps" | "faturamento" | "despesas";
+          ativo: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          clinica_id: string;
+          indicador: "leads" | "fechamentos" | "nps" | "faturamento" | "despesas";
+          ativo?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          clinica_id?: string;
+          indicador?: "leads" | "fechamentos" | "nps" | "faturamento" | "despesas";
+          ativo?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       relatorios_gerados: {
         Row: {
           id: string;
@@ -212,10 +238,17 @@ export type MetaInsert = Database["public"]["Tables"]["metas"]["Insert"];
 export type MetaUpdate = Database["public"]["Tables"]["metas"]["Update"];
 
 export type Feriado = Database["public"]["Tables"]["feriados"]["Row"];
+
+export type CheckpointIndicador =
+  Database["public"]["Tables"]["checkpoint_indicadores"]["Row"];
+export type CheckpointIndicadorInsert =
+  Database["public"]["Tables"]["checkpoint_indicadores"]["Insert"];
+
 export type RelatorioGerado = Database["public"]["Tables"]["relatorios_gerados"]["Row"];
 export type RelatorioGeradoInsert = Database["public"]["Tables"]["relatorios_gerados"]["Insert"];
 
 export type TipoFonte = FonteDados["tipo"];
+export type NomeIndicador = CheckpointIndicador["indicador"];
 export type FormatoRelatorio = RelatorioGerado["formato"];
 export type FormatoMeta = TipoMeta["formato"];
 export type ComportamentoMeta = TipoMeta["comportamento"];

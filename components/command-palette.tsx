@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, FileText, Settings, Moon, Sun } from "lucide-react";
+import {
+  LayoutDashboard, Building2, FileText, Settings, Moon, Sun, ClipboardCheck,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   CommandDialog, CommandEmpty, CommandGroup,
@@ -12,6 +14,7 @@ import {
 const NAV_ITEMS = [
   { label: "Dashboard",       href: "/dashboard",     icon: LayoutDashboard },
   { label: "Clínicas",        href: "/clinicas",      icon: Building2       },
+  { label: "Checkpoint",      href: "/checkpoint",    icon: ClipboardCheck  },
   { label: "Gerar Relatório", href: "/relatorio",     icon: FileText        },
   { label: "Configurações",   href: "/configuracoes", icon: Settings        },
 ];

@@ -9,11 +9,14 @@ import {
   TrendingUp,
   Target,
   CalendarOff,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const mainNavItems = [
   { href: "/clinicas", label: "Clínicas", icon: Building2 },
+  // Antes do report: o checkpoint é a conferência que vem primeiro no fluxo.
+  { href: "/checkpoint", label: "Checkpoint", icon: ClipboardCheck },
   { href: "/relatorio", label: "Gerar Report Semanal", icon: FileText },
   { href: "/dashboard", label: "Logs", icon: ScrollText },
 ];
