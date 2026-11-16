@@ -8,9 +8,9 @@ import type { ItemContagem } from "@/lib/coletores/planilha";
 import { ROTULO_GRUPO_ENTRADA } from "@/lib/coletores/entradas-calculo";
 import { temInformacao } from "./calculos";
 import type { ItemValor } from "./calculos";
-import { calcularResultado, atingimentoDaMeta, variacao } from "./dados";
+import { calcularResultado, atingimentoDaMeta, variacao, serieAnual } from "./dados";
 import type { DadosFechamento } from "./dados";
-import { isoParaBR } from "./periodo";
+import { isoParaBR, MESES } from "./periodo";
 
 /**
  * Transforma o retrato do fechamento nas seções do relatório, obedecendo a
@@ -72,6 +72,19 @@ export interface SecaoMontada {
   /** Só na seção de análise. */
   texto?: string;
   acoes?: AcaoPlano[];
+  /** Só na seção do gráfico: séries mês a mês (valores em reais; null = sem dado). */
+  grafico?: GraficoSecao;
+}
+
+export interface GraficoSecao {
+  /** Rótulos curtos dos meses: "jan", "fev"… */
+  meses: string[];
+  series: { nome: string; valores: (number | null)[] }[];
+}
+
+/** "2026-03" → "mar" */
+export function mesCurto(anoMes: string): string {
+  return MESES[Number(anoMes.slice(5, 7)) - 1]?.slice(0, 3) ?? anoMes;
 }
 
 export interface ContextoSecoes {
@@ -186,6 +199,14 @@ const MONTADORES: Record<string, Montador> = {
       { rotulo: "A vencer até o fim do mês", valor: brl(c.provisionado) },
       { rotulo: "Despesas do mês", valor: brl(c.despesasDoMes) },
     ];
+    if (c.mediaDespesas !== null && c.mediaDespesas !== undefined && c.mesesDaMedia) {
+      const var_ = variacao(c.despesasDoMes, c.mediaDespesas);
+      linhas.push({
+        rotulo: c.mesesDaMedia === 1 ? "Despesas do mês anterior" : `Média dos ${c.mesesDaMedia} meses anteriores`,
+        valor: brl(c.mediaDespesas),
+        extra: var_ !== null ? `mês atual ${textoVariacao(var_)}` : undefined,
+      });
+    }
     if (c.saldoProjetado !== null) {
       linhas.push({ rotulo: "Saldo projetado", valor: brl(c.saldoProjetado), tom: c.saldoProjetado >= 0 ? "bom" : "ruim" });
     }
@@ -375,9 +396,50 @@ const MONTADORES: Record<string, Montador> = {
     return { linhas: [], tabelas: [], texto, acoes };
   },
 
-  // Seções visuais de série anual: ainda não geradas por este app
-  grafico: () => ({ linhas: [], tabelas: [], vazia: "o gráfico anual ainda não é gerado por este app" }),
-  regimes: () => ({ linhas: [], tabelas: [], vazia: "a visão de caixa e competência do ano ainda não é gerada por este app" }),
+  grafico(d) {
+    const serie = serieAnual(d).filter((m) => m.faturamento !== null || m.despesas !== null);
+    if (serie.length < 2) return { linhas: [], tabelas: [], vazia: "esta leitura não tem a série do ano — leia as planilhas de novo" };
+    return {
+      linhas: [], tabelas: [],
+      grafico: {
+        meses: serie.map((m) => mesCurto(m.mes)),
+        series: [
+          { nome: "Faturamento", valores: serie.map((m) => m.faturamento) },
+          { nome: "Despesas", valores: serie.map((m) => m.despesas) },
+        ],
+      },
+    };
+  },
+
+  regimes(d, item) {
+    const serie = serieAnual(d).filter((m) => m.faturamento !== null || m.despesas !== null || m.recebido !== null);
+    if (serie.length === 0) return { linhas: [], tabelas: [], vazia: "esta leitura não tem a série do ano — leia as planilhas de novo" };
+    // Entradas: o recebido quando a clínica tem a fonte; senão, o faturamento
+    const temRecebido = serie.some((m) => m.recebido !== null);
+    const temCompetencia = item.nivel !== "caixa" && serie.some((m) => m.despesasCompetencia !== null);
+    const entrada = (m: (typeof serie)[number]) => (temRecebido ? m.recebido : m.faturamento);
+    const v = (x: number | null) => (x === null ? "—" : brl(x));
+    const saldo = (e: number | null, s: number | null) => (e === null || s === null ? "—" : brl(e - s));
+    const soma = (f: (m: (typeof serie)[number]) => number | null) => serie.reduce((t, m) => t + (f(m) ?? 0), 0);
+    const totalE = soma(entrada), totalS = soma((m) => m.despesas), totalC = soma((m) => m.despesasCompetencia);
+    return {
+      linhas: [],
+      tabelas: [{
+        titulo: "Mês a mês",
+        cabecalho: ["Mês", temRecebido ? "Entradas" : "Faturamento", "Saídas", "Saldo", ...(temCompetencia ? ["Saídas (competência)", "Saldo (competência)"] : [])],
+        linhas: [
+          ...serie.map((m) => [
+            mesCurto(m.mes), v(entrada(m)), v(m.despesas), saldo(entrada(m), m.despesas),
+            ...(temCompetencia ? [v(m.despesasCompetencia), saldo(entrada(m), m.despesasCompetencia)] : []),
+          ]),
+          ["Total", brl(totalE), brl(totalS), brl(totalE - totalS), ...(temCompetencia ? [brl(totalC), brl(totalE - totalC)] : [])],
+        ],
+      }],
+      nota: d.origem
+        ? "Série calculada no Sync: saídas de caixa pela data de pagamento."
+        : `Saídas pela data de vencimento${temCompetencia ? "; competência pelo mês informado na planilha" : ""}.`,
+    };
+  },
 };
 
 /** Seções ativas do relatório, na ordem da estrutura da clínica. */
@@ -431,6 +493,14 @@ export function montarTextoFechamento(
   for (const s of montarSecoes(dados, lista, ctx)) {
     if (s.vazia) continue;
     const linhas: string[] = [`*${s.titulo}*`];
+    if (s.id === "regimes") {
+      // no WhatsApp a tabela do ano não cabe: vai só o acumulado
+      const total = s.tabelas[0]?.linhas.at(-1);
+      const cab = s.tabelas[0]?.cabecalho ?? [];
+      if (total) for (let i = 1; i < total.length; i++) linhas.push(`➤ ${cab[i]} no ano: ${total[i]}`);
+      partes.push(linhas.join("\n"));
+      continue;
+    }
     for (const l of s.linhas) linhas.push(`➤ ${l.rotulo}: ${l.valor}${l.extra ? ` (${l.extra})` : ""}`);
     for (const t of s.tabelas) {
       if (t.linhas.length === 0) continue;

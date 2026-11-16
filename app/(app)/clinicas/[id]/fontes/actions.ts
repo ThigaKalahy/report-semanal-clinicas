@@ -62,6 +62,7 @@ function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record
     const li = Number(data.linha_inicial);
     if (li > 2) m.linha_inicial = String(li);
     m.abas_mensais = (data.abas_mensais && typeof data.abas_mensais === "object") ? data.abas_mensais : {};
+    if (String(data.aba_base ?? "").trim()) m.aba_base = String(data.aba_base).trim();
   } else {
     // despesa
     add("categoria");
@@ -69,6 +70,7 @@ function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record
     const li = Number(data.linha_inicial);
     if (li > 2) m.linha_inicial = String(li);
     m.abas_mensais = (data.abas_mensais && typeof data.abas_mensais === "object") ? data.abas_mensais : {};
+    if (String(data.aba_base ?? "").trim()) m.aba_base = String(data.aba_base).trim();
   }
   return m;
 }

@@ -9,6 +9,8 @@ import {
   calcularResultado, atingimentoDaMeta, variacao, calcularRitmo, calcularCaixaMes, gerarAlertas, VERSAO_DADOS,
 } from "../fechamento/dados";
 import type { DadosFechamento } from "../fechamento/dados";
+import { serieAnual } from "../fechamento/dados";
+import { lerMes } from "../coletores/planilha";
 import { montarSecoes, montarTextoFechamento, textoVariacao, brl, pct } from "../fechamento/secoes";
 import { calcularEntradas } from "../coletores/entradas-calculo";
 import { calcularOrcamentos } from "../coletores/orcamentos-calculo";
@@ -273,7 +275,7 @@ describe("contas que combinam fontes", () => {
 
   it("caixa do mês", () => {
     expect(calcularCaixaMes({ despesasAteAData: 30000, despesasDoMes: 80000, projecaoFaturamento: 110000 }))
-      .toEqual({ despesasAteAData: 30000, provisionado: 50000, despesasDoMes: 80000, saldoProjetado: 30000 });
+      .toMatchObject({ despesasAteAData: 30000, provisionado: 50000, despesasDoMes: 80000, saldoProjetado: 30000 });
     expect(calcularCaixaMes({ despesasAteAData: 1, despesasDoMes: 1, projecaoFaturamento: null }).saldoProjetado).toBeNull();
   });
 });
@@ -343,7 +345,7 @@ describe("seções do relatório", () => {
   it("seção sem fonte explica o motivo em vez de mostrar zeros", () => {
     const s = montarSecoes(retrato(), listaPadrao("mensal"));
     expect(s.find((x) => x.id === "entradas")!.vazia).toBe("sem fonte de Entradas");
-    expect(s.find((x) => x.id === "grafico")!.vazia).toContain("ainda não é gerado");
+    expect(s.find((x) => x.id === "grafico")!.vazia).toContain("não tem a série do ano");
   });
 
   it("receitas no nível 'todas' mostra a categoria que zerou; em 'com_valor', não", () => {
@@ -465,5 +467,94 @@ describe("linhas sem valor lançado", () => {
   it("vale também para despesas", () => {
     const r = calcularDespesas([["05/10/2026", ""], ["06/10/2026", "10,00"]], { data: "A", valor: "B" }, ...out);
     expect([r.total, r.lancamentos, r.linhasIlegiveis]).toEqual([10, 1, 0]);
+  });
+});
+
+describe("série do ano", () => {
+  const anual = [
+    { mes: "2026-08", faturamento: 9000, recebido: null, despesas: 5000, despesasCompetencia: 5500 },
+    { mes: "2026-09", faturamento: 8000, recebido: null, despesas: 6000, despesasCompetencia: 5000 },
+    { mes: "2026-10", faturamento: 10000, recebido: null, despesas: 6000, despesasCompetencia: 6500 },
+  ];
+
+  it("gráfico: uma série por indicador, meses abreviados", () => {
+    const g = montarSecoes({ ...retrato(), anual }, listaPadrao("mensal")).find((x) => x.id === "grafico")!;
+    expect(g.vazia).toBeUndefined();
+    expect(g.grafico).toEqual({
+      meses: ["ago", "set", "out"],
+      series: [{ nome: "Faturamento", valores: [9000, 8000, 10000] }, { nome: "Despesas", valores: [5000, 6000, 6000] }],
+    });
+  });
+
+  it("caixa e competência: mês a mês com total; nível 'caixa' esconde a competência", () => {
+    const ambos = montarSecoes({ ...retrato(), anual }, listaPadrao("mensal")).find((x) => x.id === "regimes")!;
+    const t = ambos.tabelas[0];
+    expect(t.cabecalho).toEqual(["Mês", "Faturamento", "Saídas", "Saldo", "Saídas (competência)", "Saldo (competência)"]);
+    expect(t.linhas.map((l) => l[0])).toEqual(["ago", "set", "out", "Total"]);
+    expect(t.linhas.at(-1)!.map(limpo)).toEqual(["Total", "R$ 27.000,00", "R$ 17.000,00", "R$ 10.000,00", "R$ 17.000,00", "R$ 10.000,00"]);
+    expect(limpo(t.linhas[0][3])).toBe("R$ 4.000,00");
+
+    const lista = normalizarEstrutura({ mensal: [{ id: "regimes", ativa: true, nivel: "caixa" }] }).mensal;
+    const caixa = montarSecoes({ ...retrato(), anual }, lista).find((x) => x.id === "regimes")!;
+    expect(caixa.tabelas[0].cabecalho).toEqual(["Mês", "Faturamento", "Saídas", "Saldo"]);
+  });
+
+  it("com a fonte de Entradas, a coluna de entrada é o recebido", () => {
+    const comRecebido = anual.map((m) => ({ ...m, recebido: m.faturamento - 1000 }));
+    const r = montarSecoes({ ...retrato(), anual: comRecebido }, listaPadrao("mensal")).find((x) => x.id === "regimes")!;
+    expect(r.tabelas[0].cabecalho[1]).toBe("Entradas");
+    expect(limpo(r.tabelas[0].linhas[0][1])).toBe("R$ 8.000,00");
+  });
+
+  it("fechamento importado: a série vem do formato do Sync", () => {
+    const origem = {
+      sistema: "sync" as const, id: "x", importadoEm: "2026-11-16T00:00:00Z",
+      anual: [
+        { mes: "2026-09", entradas: 100, recebido: 90, saidasCaixa: 40, saidasCompetencia: 50 },
+        { mes: "2026-10", entradas: 200, saidasCaixa: 60 },
+        "lixo",
+      ],
+    };
+    expect(serieAnual({ origem })).toEqual([
+      { mes: "2026-09", faturamento: 100, recebido: 90, despesas: 40, despesasCompetencia: 50 },
+      { mes: "2026-10", faturamento: 200, recebido: null, despesas: 60, despesasCompetencia: null },
+    ]);
+    // a série própria tem precedência sobre a de origem
+    expect(serieAnual({ anual, origem })).toBe(anual);
+    const g = montarSecoes({ ...retrato(), origem }, listaPadrao("mensal")).find((x) => x.id === "grafico")!;
+    expect(g.grafico!.meses).toEqual(["set", "out"]);
+  });
+
+  it("no texto do WhatsApp o gráfico não entra e o ano vai resumido no total", () => {
+    const texto = limpo(montarTextoFechamento("Clínica Teste", { ...retrato(), anual }, listaPadrao("mensal")));
+    expect(texto).not.toContain("Gráfico");
+    expect(texto).toContain("*Caixa e competência no ano*\n➤ Faturamento no ano: R$ 27.000,00\n➤ Saídas no ano: R$ 17.000,00\n➤ Saldo no ano: R$ 10.000,00");
+    expect(texto).not.toContain("– ago:");
+  });
+
+  it("caixa do mês: média dos meses anteriores que deu para ler", () => {
+    const c = calcularCaixaMes({ despesasAteAData: 3000, despesasDoMes: 6600, projecaoFaturamento: 10000, despesasMesesAnteriores: [5000, 6000, 7000] });
+    expect([c.mediaDespesas, c.mesesDaMedia]).toEqual([6000, 3]);
+    expect(calcularCaixaMes({ despesasAteAData: 1, despesasDoMes: 1, projecaoFaturamento: null }).mediaDespesas).toBeNull();
+    const d = { ...retrato("quinzenal"), caixaMes: c, ritmo: null };
+    const s = montarSecoes(d, listaPadrao("quinzenal")).find((x) => x.id === "caixaMes")!;
+    const media = s.linhas.find((l) => l.rotulo === "Média dos 3 meses anteriores")!;
+    expect(limpo(media.valor)).toBe("R$ 6.000,00");
+    expect(media.extra).toBe("mês atual ▲ 10,0%");
+  });
+});
+
+describe("mês de competência", () => {
+  it("lê os formatos comuns de planilha", () => {
+    expect(lerMes("15/10/2026")).toBe("2026-10");
+    expect(lerMes("10/2026")).toBe("2026-10");
+    expect(lerMes("2026-10")).toBe("2026-10");
+    expect(lerMes("out/2026")).toBe("2026-10");
+    expect(lerMes("Outubro de 2026")).toBe("2026-10");
+    expect(lerMes("Out26")).toBe("2026-10");
+    expect(lerMes("3/26")).toBe("2026-03");
+    expect(lerMes("13/2026")).toBeNull();
+    expect(lerMes("xyz/2026")).toBeNull();
+    expect(lerMes("")).toBeNull();
   });
 });

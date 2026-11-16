@@ -707,6 +707,7 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
     defaultValues: {
       sheet_id:      existingFonte?.sheet_id    ?? "",
       aba_resumo:    existingFonte?.aba_nome     ?? "",
+      aba_base:      m.aba_base ?? "",
       coluna_data:   existingFonte?.coluna_data  ?? "",
       categoria:     m.categoria    ?? "",
       valor_pago:    m.valor_pago   ?? "",
@@ -720,9 +721,9 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
 
   async function testConnection() {
     setIsTesting(true);
-    const primeiraAba = Object.values(abasMensais)[0];
+    const primeiraAba = Object.values(abasMensais)[0] || String(form.getValues("aba_base") ?? "").trim();
     if (!primeiraAba) {
-      toast.error("Adicione pelo menos uma aba mensal para testar a conexão.");
+      toast.error("Informe a aba única ou pelo menos uma aba mensal para testar a conexão.");
       setIsTesting(false);
       return;
     }
@@ -766,6 +767,16 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
           Formato: <code className="bg-muted px-1 rounded text-[11px]">AAAA-MM</code> → nome da aba.
         </p>
         <AbasMensaisEditor value={abasMensais} onChange={setAbasMensais} sheetId={form.watch("sheet_id")} />
+        <div className="space-y-1.5 pt-1">
+          <Label htmlFor="fat_aba_base">
+            Aba única
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(opcional)</span>
+          </Label>
+          <Input id="fat_aba_base" {...form.register("aba_base")} placeholder="Base" className="max-w-56" />
+          <p className="text-xs text-muted-foreground">
+            Para planilhas com todos os meses na mesma aba. Vale para todo mês que não tiver aba própria na lista acima.
+          </p>
+        </div>
         <div className="space-y-1.5 pt-1">
           <Label htmlFor="fat_aba_resumo">
             Aba &quot;Resumo&quot;
@@ -832,6 +843,7 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
     defaultValues: {
       sheet_id:      existingFonte?.sheet_id   ?? "",
       aba_resumo:    existingFonte?.aba_nome    ?? "",
+      aba_base:      m.aba_base ?? "",
       coluna_data:   existingFonte?.coluna_data ?? "",
       categoria:     m.categoria  ?? "",
       valor_pago:    m.valor_pago ?? "",
@@ -844,9 +856,9 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
 
   async function testConnection() {
     setIsTesting(true);
-    const primeiraAba = Object.values(abasMensais)[0];
+    const primeiraAba = Object.values(abasMensais)[0] || String(form.getValues("aba_base") ?? "").trim();
     if (!primeiraAba) {
-      toast.error("Adicione pelo menos uma aba mensal para testar a conexão.");
+      toast.error("Informe a aba única ou pelo menos uma aba mensal para testar a conexão.");
       setIsTesting(false);
       return;
     }
@@ -890,6 +902,16 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
           Formato: <code className="bg-muted px-1 rounded text-[11px]">AAAA-MM</code> → nome da aba.
         </p>
         <AbasMensaisEditor value={abasMensais} onChange={setAbasMensais} sheetId={form.watch("sheet_id")} />
+        <div className="space-y-1.5 pt-1">
+          <Label htmlFor="desp_aba_base">
+            Aba única
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">(opcional)</span>
+          </Label>
+          <Input id="desp_aba_base" {...form.register("aba_base")} placeholder="Base" className="max-w-56" />
+          <p className="text-xs text-muted-foreground">
+            Para planilhas com todos os meses na mesma aba. Vale para todo mês que não tiver aba própria na lista acima.
+          </p>
+        </div>
         <div className="space-y-1.5 pt-1">
           <Label htmlFor="desp_aba_resumo">
             Aba &quot;Resumo&quot;

@@ -73,6 +73,22 @@ export interface CaixaMes {
   despesasDoMes: number;
   /** Projeção do faturamento − despesas do mês inteiro. */
   saldoProjetado: number | null;
+  /** Média das despesas dos meses anteriores lidos (até 3); ausente em leituras antigas. */
+  mediaDespesas?: number | null;
+  mesesDaMedia?: number;
+}
+
+/** Um mês da série do ano (base do gráfico e da visão de caixa e competência). */
+export interface MesAnual {
+  /** "AAAA-MM" */
+  mes: string;
+  faturamento: number | null;
+  /** Entradas (recebido); null sem a fonte de Entradas. */
+  recebido: number | null;
+  /** Despesas pela data da fonte (vencimento). */
+  despesas: number | null;
+  /** Despesas pelo mês de competência; null sem a coluna. */
+  despesasCompetencia: number | null;
 }
 
 export interface Comparativo {
@@ -104,6 +120,19 @@ export interface DadosFechamento {
   caixaMes: CaixaMes | null;
   leituras: LeituraFonte[];
   alertas: Alerta[];
+  /** Série do ano até o mês do fechamento (só no mensal; ausente em leituras antigas). */
+  anual?: MesAnual[];
+  /** Presente só em fechamentos trazidos de outro sistema. */
+  origem?: OrigemFechamento;
+}
+
+export interface OrigemFechamento {
+  sistema: "sync";
+  /** Id do fechamento no sistema de origem. */
+  id: string;
+  importadoEm: string;
+  /** Série mensal do ano como veio da origem (base do gráfico anual). */
+  anual?: unknown[];
 }
 
 // ── Contas que combinam fontes ───────────────────────────────────────────────
@@ -172,9 +201,14 @@ export function calcularCaixaMes(e: {
   despesasAteAData: number;
   despesasDoMes: number;
   projecaoFaturamento: number | null;
+  /** Totais de despesa dos meses anteriores que deu para ler (até 3). */
+  despesasMesesAnteriores?: number[];
 }): CaixaMes {
   const c = (v: number) => Math.round(v * 100) / 100;
+  const anteriores = e.despesasMesesAnteriores ?? [];
   return {
+    mediaDespesas: anteriores.length > 0 ? c(anteriores.reduce((s, v) => s + v, 0) / anteriores.length) : null,
+    mesesDaMedia: anteriores.length,
     despesasAteAData: c(e.despesasAteAData),
     provisionado: c(Math.max(0, e.despesasDoMes - e.despesasAteAData)),
     despesasDoMes: c(e.despesasDoMes),
@@ -262,4 +296,22 @@ export function gerarAlertas(d: Omit<DadosFechamento, "alertas">): Alerta[] {
 
   const ordem: Record<GravidadeAlerta, number> = { erro: 0, atencao: 1, info: 2 };
   return alertas.sort((a, b) => ordem[a.gravidade] - ordem[b.gravidade]);
+}
+
+/**
+ * Série do ano de um fechamento, venha ela da leitura daqui ou do sistema de
+ * origem (no Sync: entradas = faturamento, saidasCaixa = despesas).
+ */
+export function serieAnual(d: Pick<DadosFechamento, "anual" | "origem">): MesAnual[] {
+  if (d.anual?.length) return d.anual;
+  const num = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : null);
+  return (d.origem?.anual ?? [])
+    .filter((m): m is Record<string, unknown> => !!m && typeof m === "object" && typeof (m as { mes?: unknown }).mes === "string")
+    .map((m) => ({
+      mes: String(m.mes),
+      faturamento: num(m.entradas),
+      recebido: num(m.recebido),
+      despesas: num(m.saidasCaixa),
+      despesasCompetencia: num(m.saidasCompetencia),
+    }));
 }

@@ -136,9 +136,21 @@ export async function coletarDespesa(
   const mapeamento     = getMapeamento(fonte.mapeamento);
   const mapeamentoRaw  = getMapeamentoRaw(fonte.mapeamento);
   const abasMensais    = getAbasMensais(mapeamentoRaw);
-  const abasResolvidas = resolveAbas(dataInicio, dataFim, abasMensais);
+  // Planilha de aba única ("Base", "SAIDAS"): `aba_base` vale para todo mês sem
+  // aba própria. A mesma aba nunca é lida duas vezes — senão um período que
+  // cruza meses contaria as linhas em dobro.
+  const abaBase = typeof mapeamentoRaw.aba_base === "string" ? mapeamentoRaw.aba_base.trim() : "";
+  const abasVistas = new Set<string>();
+  const abasResolvidas = resolveAbas(dataInicio, dataFim, abasMensais)
+    .map((a) => ({ ...a, abaNome: a.abaNome || abaBase }))
+    .filter((a) => {
+      if (!a.abaNome) return true; // mês sem aba: mantém para o erro abaixo
+      if (abasVistas.has(a.abaNome)) return false;
+      abasVistas.add(a.abaNome);
+      return true;
+    });
 
-  if (Object.keys(abasMensais).length === 0) {
+  if (Object.keys(abasMensais).length === 0 && !abaBase) {
     throw new Error(
       "Mapa de abas mensais não configurado. Adicione as abas no formulário de configuração da fonte de despesa."
     );

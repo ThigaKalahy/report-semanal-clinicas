@@ -6,8 +6,8 @@ import { CommandPalette } from "@/components/command-palette";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen">
-      <aside className="w-64 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col">
+    <div className="flex h-screen print:block print:h-auto">
+      <aside className="w-64 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col print:hidden">
         <div className="px-5 py-5">
           <GestfyLogo variant="full" size={32} />
         </div>
@@ -23,7 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooterClient />
       </aside>
 
-      <main className="flex-1 overflow-auto bg-background">
+      <main className="flex-1 overflow-auto bg-background print:overflow-visible">
         {children}
       </main>
       <CommandPalette />

@@ -4,7 +4,8 @@ import { coletarNPS } from "@/lib/coletores/nps";
 import { coletarAvaliacoesGoogle } from "@/lib/coletores/google-places";
 import { coletarMetas } from "@/lib/coletores/metas";
 import { coletarEntradas, coletarOrcamentos } from "@/lib/coletores/fontes-simples";
-import { normalizarTexto } from "@/lib/coletores/planilha";
+import { normalizarTexto, indiceDaColuna, lerValor, lerMes } from "@/lib/coletores/planilha";
+import { calcularEntradas } from "@/lib/coletores/entradas-calculo";
 import { diasUteisDoMes, diasUteisDecorridos } from "@/lib/dias-uteis";
 import type { FonteDados, Json } from "@/lib/supabase/types";
 import { calcularVendas, calcularDespesas, calcularLeads } from "./calculos";
@@ -12,7 +13,7 @@ import type { ResultadoVendas, ResultadoDespesas } from "./calculos";
 import {
   VERSAO_DADOS, calcularRitmo, calcularCaixaMes, gerarAlertas,
 } from "./dados";
-import type { DadosFechamento, LeituraFonte, Comparativo } from "./dados";
+import type { DadosFechamento, LeituraFonte, Comparativo, MesAnual } from "./dados";
 import {
   periodoAnterior, rotuloPeriodo, rotuloCurto, dataISO, chaveAnoMes, ultimoDiaDoMes,
 } from "./periodo";
@@ -46,10 +47,20 @@ async function linhasDoMes(fonte: FonteDados, ano: number, mes: number): Promise
   if (!aba) {
     throw new Error(`não há aba configurada para ${String(mes).padStart(2, "0")}/${ano} — confira as abas mensais da fonte`);
   }
-  const rows = (await readSheetRange(fonte.sheet_id, `${aspas(aba)}!A:AZ`)) ?? [];
-  const linhaInicial = Math.max(2, parseInt(txt(m.linha_inicial) || "2", 10) || 2);
-  return rows.slice(linhaInicial - 1);
+  // Cada aba é lida uma vez por fechamento: a série do ano e as comparações
+  // pedem os mesmos meses várias vezes, e a planilha de aba única é sempre a mesma.
+  const chave = `${fonte.id}:${aba}`;
+  let lida = cacheAbas.get(chave);
+  if (!lida) {
+    const linhaInicial = Math.max(2, parseInt(txt(m.linha_inicial) || "2", 10) || 2);
+    lida = readSheetRange(fonte.sheet_id, `${aspas(aba)}!A:AZ`).then((rows) => (rows ?? []).slice(linhaInicial - 1));
+    cacheAbas.set(chave, lida);
+    lida.catch(() => cacheAbas.delete(chave));
+  }
+  return lida;
 }
+
+const cacheAbas = new Map<string, Promise<unknown[][]>>();
 
 async function linhasDaAba(fonte: FonteDados): Promise<unknown[][]> {
   const m = mapa(fonte.mapeamento);
@@ -70,6 +81,7 @@ export async function coletarFechamento(
     db.from("feriados").select("data"),
   ]);
   if (!clinica) throw new Error("Clínica não encontrada.");
+  cacheAbas.clear(); // leitura nova: nada de planilha guardada de um fechamento anterior
 
   const fontes = (fontesBrutas ?? []) as FonteDados[];
   const fonte = (tipo: FonteDados["tipo"]) => fontes.find((f) => f.tipo === tipo) ?? null;
@@ -188,6 +200,69 @@ export async function coletarFechamento(
     if (m && m.meta_mensal > 0) meta = m.meta_mensal;
   } catch { /* sem meta: os indicadores de meta ficam em branco */ }
 
+  // ── Série do ano (mensal): base do gráfico e da visão de caixa e competência ──
+  const anual: MesAnual[] = [];
+  if (!quinzenal && (fFat || fDesp || fEnt)) {
+    const iComp = indiceDaColuna(txt(mDesp.competencia));
+    const iValorDesp = indiceDaColuna(colDesp.valor);
+    const competencia = new Map<string, number>();
+    const abasSomadas = new Set<unknown[][]>();
+    const mEnt = mapa(fEnt?.mapeamento ?? null);
+    let linhasEntradas: unknown[][] | null = null;
+    if (fEnt && entradas) { try { linhasEntradas = await linhasDaAba(fEnt); } catch { /* sem série de recebido */ } }
+
+    for (let m = 1; m <= mes; m++) {
+      const de = new Date(ano, m - 1, 1);
+      const ate = new Date(ano, m - 1, ultimoDiaDoMes(ano, m));
+      const item: MesAnual = { mes: chaveAnoMes(ano, m), faturamento: null, recebido: null, despesas: null, despesasCompetencia: null };
+      if (fFat && faturamento) {
+        try { item.faturamento = calcularVendas(await linhasDoMes(fFat, ano, m), colVendas, de, ate).total; } catch { /* mês sem aba */ }
+      }
+      if (fDesp && despesas) {
+        try {
+          const linhas = await linhasDoMes(fDesp, ano, m);
+          item.despesas = calcularDespesas(linhas, colDesp, de, ate).total;
+          // competência: soma cada aba uma vez só, pelo mês escrito na coluna
+          if (iComp >= 0 && !abasSomadas.has(linhas)) {
+            abasSomadas.add(linhas);
+            for (const l of linhas) {
+              const quando = lerMes(l[iComp]);
+              const valor = lerValor(l[iValorDesp]);
+              if (quando && valor !== null) competencia.set(quando, (competencia.get(quando) ?? 0) + valor);
+            }
+          }
+        } catch { /* mês sem aba */ }
+      }
+      if (linhasEntradas) {
+        item.recebido = calcularEntradas(
+          linhasEntradas,
+          { data: fEnt!.coluna_data, valor: txt(mEnt.valor), situacao: txt(mEnt.situacao), categoria: txt(mEnt.categoria) },
+          de, ate, { fora: txt(mEnt.termos_fora), nao_operacional: txt(mEnt.termos_nao_operacional) },
+        ).total;
+      }
+      anual.push(item);
+    }
+    if (iComp >= 0) {
+      for (const item of anual) {
+        if (item.despesas !== null) item.despesasCompetencia = Math.round((competencia.get(item.mes) ?? 0) * 100) / 100;
+      }
+    }
+  }
+
+  // ── Média de despesas dos 3 meses anteriores (quinzenal) ──
+  const despesasMesesAnteriores: number[] = [];
+  if (quinzenal && fDesp && despesas) {
+    for (let k = 1; k <= 3; k++) {
+      const d = new Date(ano, mes - 1 - k, 1);
+      const [a, m] = [d.getFullYear(), d.getMonth() + 1];
+      try {
+        const linhas = await linhasDoMes(fDesp, a, m);
+        const r = calcularDespesas(linhas, colDesp, d, new Date(a, m - 1, ultimoDiaDoMes(a, m)));
+        if (r.lancamentos > 0) despesasMesesAnteriores.push(r.total);
+      } catch { /* mês sem aba: fica fora da média */ }
+    }
+  }
+
   // ── Ritmo e caixa do mês (quinzenal) ──
   const ritmo = quinzenal && faturamentoMes !== null
     ? calcularRitmo({
@@ -198,7 +273,9 @@ export async function coletarFechamento(
       })
     : null;
   const caixaMes = quinzenal && despesasAteAData !== null && despesasDoMes !== null
-    ? calcularCaixaMes({ despesasAteAData, despesasDoMes, projecaoFaturamento: ritmo?.projecao ?? null })
+    ? calcularCaixaMes({
+        despesasAteAData, despesasDoMes, projecaoFaturamento: ritmo?.projecao ?? null, despesasMesesAnteriores,
+      })
     : null;
 
   const semAlertas: Omit<DadosFechamento, "alertas"> = {
@@ -234,6 +311,7 @@ export async function coletarFechamento(
     ritmo,
     caixaMes,
     leituras,
+    ...(anual.length > 0 ? { anual } : {}),
   };
 
   return { ...semAlertas, alertas: gerarAlertas(semAlertas) };

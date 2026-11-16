@@ -116,3 +116,33 @@ export function lerTermos(texto: unknown): string[] {
 export function contemTermo(textoNormalizado: string, termos: string[]): boolean {
   return termos.some((t) => textoNormalizado.includes(t));
 }
+
+const MESES_ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/**
+ * Mês escrito na planilha → "AAAA-MM". Aceita data completa (DD/MM/AAAA,
+ * AAAA-MM-DD), "MM/AAAA", "AAAA-MM" e mês por extenso ou abreviado com ano
+ * ("out/2026", "Outubro 2026", "Out26"). Devolve null quando não reconhece.
+ */
+export function lerMes(valor: unknown): string | null {
+  const bruto = String(valor ?? "").trim();
+  if (!bruto) return null;
+  const data = lerData(bruto);
+  if (data) return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
+
+  const chave = (ano: number, mes: number) =>
+    mes >= 1 && mes <= 12 ? `${ano < 100 ? 2000 + ano : ano}-${String(mes).padStart(2, "0")}` : null;
+
+  let m = bruto.match(/^(\d{1,2})[\/\-.](\d{4}|\d{2})$/);
+  if (m) return chave(Number(m[2]), Number(m[1]));
+  m = bruto.match(/^(\d{4})[\/\-.](\d{1,2})$/);
+  if (m) return chave(Number(m[1]), Number(m[2]));
+
+  const t = normalizarTexto(bruto);
+  m = t.match(/^([a-z]{3})[a-z]*\W*(?:de\W*)?(\d{4}|\d{2})$/);
+  if (m) {
+    const mes = MESES_ABREV.indexOf(m[1]) + 1;
+    return mes ? chave(Number(m[2]), mes) : null;
+  }
+  return null;
+}

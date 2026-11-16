@@ -143,7 +143,8 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                   ? raw.abas_mensais as Record<string, string>
                   : null;
                 const m = getMapeamentoStr(fonte.mapeamento);
-                const colEntries = Object.entries(m).filter(([k]) => k !== "abas_mensais");
+                const colEntries = Object.entries(m).filter(([k]) => k !== "abas_mensais" && k !== "aba_base");
+                const abaBase = typeof raw?.aba_base === "string" ? raw.aba_base : "";
 
                 return (
                   <>
@@ -159,7 +160,12 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                           ))}
                       </div>
                     )}
-                    {isFinanceiro && (!abasMensais || Object.keys(abasMensais).length === 0) && (
+                    {isFinanceiro && abaBase && (
+                      <div className="p-3 bg-muted/50 rounded-md">
+                        <ColBadge label="Aba única" value={abaBase} />
+                      </div>
+                    )}
+                    {isFinanceiro && !abaBase && (!abasMensais || Object.keys(abasMensais).length === 0) && (
                       <p className="text-xs text-amber-600 dark:text-amber-400">
                         Mapa de abas mensais vazio — configure antes de coletar.
                       </p>

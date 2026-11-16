@@ -88,7 +88,9 @@ export async function lerFonteCheckpoint(
 ): Promise<LeituraFonte> {
   const mapeamento  = getMapeamento(fonte.mapeamento);
   const abasMensais = getAbasMensais(mapeamento);
-  const mensal      = Object.keys(abasMensais).length > 0;
+  // aba única das fontes financeiras: vale para todo mês sem aba própria
+  const abaBase     = typeof mapeamento.aba_base === "string" ? mapeamento.aba_base.trim() : "";
+  const mensal      = Object.keys(abasMensais).length > 0 || abaBase !== "";
 
   const dataIdx      = colIndex(fonte.coluna_data);
   const categoriaCol = typeof mapeamento.categoria === "string" ? mapeamento.categoria : "";
@@ -100,9 +102,9 @@ export async function lerFonteCheckpoint(
 
   if (mensal) {
     for (const mes of mesesDeInteresse(ini, fim, referencia)) {
-      const aba = abasMensais[mes];
-      if (aba) abas.push(aba);
-      else mesesSemAba.push(mes);
+      const aba = abasMensais[mes] || abaBase;
+      if (!aba) mesesSemAba.push(mes);
+      else if (!abas.includes(aba)) abas.push(aba); // a mesma aba não é lida duas vezes
     }
   } else {
     abas.push(fonte.aba_nome);

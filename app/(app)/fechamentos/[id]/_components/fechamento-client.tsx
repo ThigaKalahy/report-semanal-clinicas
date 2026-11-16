@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ChevronLeft, RefreshCw, Loader2, CheckCircle2, XCircle, MinusCircle, AlertTriangle, Info,
-  Sparkles, Plus, Trash2, Check, ArrowRight, Undo2, LayoutList, FileText,
+  Sparkles, Plus, Trash2, Check, ArrowRight, Undo2, LayoutList, FileText, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CopyButton } from "@/components/copy-button";
 import { montarSecoes } from "@/lib/fechamento/secoes";
-import type { AcaoPlano, SecaoMontada } from "@/lib/fechamento/secoes";
+import type { AcaoPlano } from "@/lib/fechamento/secoes";
+import { CartaoSecao } from "../../_components/secao";
 import type { DadosFechamento, Alerta, LeituraFonte } from "@/lib/fechamento/dados";
 import { ETAPAS, ROTULO_STATUS, CLASSE_STATUS, posicaoDoStatus, proximoStatus } from "@/lib/fechamento/status";
 import type { TipoFechamento } from "@/lib/fechamento/periodo";
@@ -37,11 +38,6 @@ function dataHoraBR(iso: string | null | undefined): string {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
-
-const TOM: Record<string, string> = {
-  bom: "text-emerald-600 dark:text-emerald-400",
-  ruim: "text-red-600 dark:text-red-400",
-};
 
 // ── Conferência ──────────────────────────────────────────────────────────────
 
@@ -71,78 +67,6 @@ function CartaoAlerta({ a }: { a: Alerta }) {
         <p className="text-xs text-muted-foreground break-words">{a.descricao}</p>
       </div>
     </div>
-  );
-}
-
-// ── Seção do relatório ───────────────────────────────────────────────────────
-
-function CartaoSecao({ s }: { s: SecaoMontada }) {
-  if (s.vazia) {
-    return (
-      <div className="rounded-lg border border-dashed px-4 py-3">
-        <p className="text-sm font-medium text-muted-foreground">{s.titulo}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">Fica fora do relatório: {s.vazia}.</p>
-      </div>
-    );
-  }
-  return (
-    <section className="rounded-lg border bg-card">
-      <h3 className="px-4 pt-3.5 pb-2 text-sm font-semibold font-heading">{s.titulo}</h3>
-      {s.linhas.length > 0 && (
-        <dl className="px-4 pb-2 divide-y">
-          {s.linhas.map((l) => (
-            <div key={l.rotulo} className="flex items-baseline justify-between gap-4 py-1.5">
-              <dt className="text-sm text-muted-foreground">{l.rotulo}</dt>
-              <dd className="text-right">
-                <span className={`text-sm font-medium tabular-nums ${l.tom && !l.extra ? TOM[l.tom] : ""}`}>{l.valor}</span>
-                {l.extra && (
-                  <span className={`ml-2 text-xs tabular-nums ${l.tom ? TOM[l.tom] : "text-muted-foreground"}`}>{l.extra}</span>
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {s.tabelas.filter((t) => t.linhas.length > 0).map((t) => (
-        <div key={t.titulo} className="px-4 pb-3">
-          <p className="pt-2 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.titulo}</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-muted-foreground">
-                  {t.cabecalho.map((c, i) => (
-                    <th key={c} className={`py-1 font-normal ${i === 0 ? "text-left" : "text-right pl-3"}`}>{c}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {t.linhas.map((linha, li) => (
-                  <tr key={li}>
-                    {linha.map((cel, i) => (
-                      <td key={i} className={`py-1.5 ${i === 0 ? "text-left" : "text-right pl-3 tabular-nums whitespace-nowrap"}`}>{cel}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-      {s.texto && <p className="px-4 pb-3 text-sm whitespace-pre-wrap">{s.texto}</p>}
-      {s.acoes && s.acoes.length > 0 && (
-        <ol className="px-4 pb-3 space-y-1 text-sm list-decimal list-inside">
-          {s.acoes.map((a, i) => (
-            <li key={i}>
-              {a.texto}
-              {(a.responsavel || a.prazo) && (
-                <span className="text-muted-foreground"> — {[a.responsavel, a.prazo && `até ${a.prazo}`].filter(Boolean).join(", ")}</span>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-      {s.nota && <p className="px-4 pb-3 text-xs text-muted-foreground">{s.nota}</p>}
-    </section>
   );
 }
 
@@ -378,9 +302,14 @@ export function FechamentoClient(props: {
             <p className="text-xs text-muted-foreground">
               Seções, ordem e indicadores seguem a estrutura do relatório desta clínica.
             </p>
-            <Button variant="outline" size="sm" className="gap-2" asChild>
-              <Link href={`/clinicas/${clinicaId}/estrutura`}><LayoutList className="h-3.5 w-3.5" />Estrutura do relatório</Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="gap-2" asChild>
+                <Link href={`/fechamentos/${id}/imprimir`}><Printer className="h-3.5 w-3.5" />Imprimir ou PDF</Link>
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" asChild>
+                <Link href={`/clinicas/${clinicaId}/estrutura`}><LayoutList className="h-3.5 w-3.5" />Estrutura do relatório</Link>
+              </Button>
+            </div>
           </div>
           {!dados
             ? <p className="text-sm text-muted-foreground">Sem leitura ainda.</p>
@@ -450,6 +379,9 @@ export function FechamentoClient(props: {
               {texto ? "Gerar de novo a partir dos números" : "Gerar texto"}
             </Button>
             {texto && <CopyButton text={texto} label="Copiar para o WhatsApp" />}
+            <Button variant="outline" size="sm" className="gap-2" asChild>
+              <Link href={`/fechamentos/${id}/imprimir`}><Printer className="h-3.5 w-3.5" />Imprimir ou PDF</Link>
+            </Button>
           </div>
           {texto ? (
             <>

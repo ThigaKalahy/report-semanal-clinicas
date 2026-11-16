@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, Trash2, AlertTriangle, Search, ArrowRight } from "lucide-react";
+import { Plus, Loader2, Trash2, AlertTriangle, Search, ArrowRight, Columns3 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -132,9 +132,14 @@ export function FechamentosClient({
             Relatórios financeiros mensais e quinzenais: conferência das planilhas, indicadores, análise e entrega.
           </p>
         </div>
-        <Button className="gap-2" onClick={() => { setErroNovo(null); setNovoAberto(true); }} disabled={!!erroBanco}>
-          <Plus className="h-4 w-4" />Novo fechamento
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" asChild>
+            <Link href="/fechamentos/comparativos"><Columns3 className="h-4 w-4" />Comparativos</Link>
+          </Button>
+          <Button className="gap-2" onClick={() => { setErroNovo(null); setNovoAberto(true); }} disabled={!!erroBanco}>
+            <Plus className="h-4 w-4" />Novo fechamento
+          </Button>
+        </div>
       </div>
 
       {erroBanco && (

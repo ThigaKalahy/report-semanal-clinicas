@@ -39,7 +39,7 @@ const AVISO_TIPO: Record<Periodicidade, string> = {
   quinzenal:
     "Vale para a tela de indicadores e para o texto de entrega dos fechamentos quinzenais desta clínica.",
   mensal:
-    "Vale para a tela de indicadores e para o texto de entrega dos fechamentos mensais desta clínica. O gráfico anual e a visão de caixa e competência ainda não são gerados.",
+    "Vale para a tela de indicadores e para o texto de entrega dos fechamentos mensais desta clínica.",
 };
 
 export function EstruturaForm({

@@ -21,6 +21,8 @@ const baseFinancial = z.object({
   sheet_id:    z.string().min(1, "Obrigatório"),
   aba_resumo:  z.string(), // nome da aba de resumo anual (opcional; armazenado em aba_nome no DB)
   abas_mensais: z.record(z.string(), z.string()), // "AAAA-MM" → nome exato da aba
+  // Planilha de aba única: vale para todo mês que não tiver aba própria acima
+  aba_base:    z.string().max(100).optional(),
   coluna_data: requiredCol,
 });
 
