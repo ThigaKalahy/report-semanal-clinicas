@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FonteForm } from "./fonte-form";
 import { TesteLeituraDialog } from "./teste-leitura-dialog";
+import { TesteSimplesDialog } from "./teste-simples-dialog";
+import { ROTULO_FONTE, ehFonteSimples, rotuloDoCampo } from "@/lib/fontes/campos";
 import { deleteFonte } from "../actions";
 import type { FonteDados, Json, TipoFonte } from "@/lib/supabase/types";
 
@@ -49,13 +51,7 @@ function getMapeamentoStr(mapeamento: Json): Record<string, string> {
   return {};
 }
 
-const TIPO_LABELS: Record<TipoFonte, string> = {
-  pre_consulta: "Pré-Consulta",
-  nps:          "NPS",
-  leads:        "Leads",
-  faturamento:  "Faturamento",
-  despesa:      "Despesa",
-};
+const TIPO_LABELS = ROTULO_FONTE;
 
 export function FonteSection({ tipo, title, description, clinicaId, fonte }: Props) {
   const [isEditing,      setIsEditing]      = useState(false);
@@ -64,6 +60,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
   const [testeOpen,      setTesteOpen]      = useState(false);
 
   const isFinanceiro = tipo === "faturamento" || tipo === "despesa";
+  const isSimples    = ehFonteSimples(tipo);
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -94,7 +91,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
             </div>
             <div className="flex gap-2">
               {fonte && !isEditing && (<>
-                {isFinanceiro && (
+                {(isFinanceiro || isSimples) && (
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTesteOpen(true)}>
                     <FlaskConical className="h-3.5 w-3.5" />Testar leitura
                   </Button>
@@ -173,7 +170,7 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
                           Mapeamento de colunas
                         </div>
                         {colEntries.map(([k, v]) => (
-                          <ColBadge key={k} label={k.replace(/_/g, " ")} value={v} />
+                          <ColBadge key={k} label={rotuloDoCampo(tipo, k)} value={v} />
                         ))}
                       </div>
                     )}
@@ -211,6 +208,10 @@ export function FonteSection({ tipo, title, description, clinicaId, fonte }: Pro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {isSimples && (
+        <TesteSimplesDialog clinicaId={clinicaId} tipo={tipo} open={testeOpen} onOpenChange={setTesteOpen} />
+      )}
 
       {/* Diálogo de teste de leitura (só fontes financeiras) */}
       {isFinanceiro && (

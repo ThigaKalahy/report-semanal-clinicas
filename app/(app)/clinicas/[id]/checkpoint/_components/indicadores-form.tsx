@@ -18,6 +18,8 @@ const FONTE_LABEL: Record<TipoFonte, string> = {
   leads:        "Leads",
   faturamento:  "Faturamento",
   despesa:      "Despesas",
+  entradas:     "Entradas",
+  orcamentos:   "Orçamentos",
 };
 
 export function IndicadoresForm({

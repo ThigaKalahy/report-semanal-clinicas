@@ -1,0 +1,469 @@
+import { describe, it, expect } from "vitest";
+import {
+  periodoDe, periodoAnterior, rotuloPeriodo, rotuloCurto, dataISO, isoParaBR, periodoSugerido,
+  periodoEncerrado, chaveAnoMes,
+} from "../fechamento/periodo";
+import { grupoDaDespesa, GRUPO_OUTRAS, GRUPOS_DESPESA } from "../fechamento/grupos-despesa";
+import { calcularVendas, calcularDespesas, calcularLeads, temInformacao } from "../fechamento/calculos";
+import {
+  calcularResultado, atingimentoDaMeta, variacao, calcularRitmo, calcularCaixaMes, gerarAlertas, VERSAO_DADOS,
+} from "../fechamento/dados";
+import type { DadosFechamento } from "../fechamento/dados";
+import { montarSecoes, montarTextoFechamento, textoVariacao, brl, pct } from "../fechamento/secoes";
+import { calcularEntradas } from "../coletores/entradas-calculo";
+import { calcularOrcamentos } from "../coletores/orcamentos-calculo";
+import { listaPadrao, normalizarEstrutura } from "../estrutura/estrutura";
+import { ETAPAS, proximoStatus, posicaoDoStatus } from "../fechamento/status";
+import { SEGMENTOS } from "../perfil/vocabulario";
+
+const out = [new Date(2026, 9, 1), new Date(2026, 9, 31)] as const;
+// espaço não separável que o toLocaleString põe depois de "R$"
+const limpo = (s: string) => s.replace(/ /g, " ");
+
+describe("períodos", () => {
+  it("mensal cobre o mês inteiro, inclusive fevereiro bissexto", () => {
+    const p = periodoDe("mensal", 2028, 2);
+    expect([dataISO(p.inicio), dataISO(p.fim), p.quinzena]).toEqual(["2028-02-01", "2028-02-29", null]);
+  });
+
+  it("quinzenas: 1 a 15 e 16 ao fim", () => {
+    expect(dataISO(periodoDe("quinzenal", 2026, 10, 1).fim)).toBe("2026-10-15");
+    const q2 = periodoDe("quinzenal", 2026, 10, 2);
+    expect([dataISO(q2.inicio), dataISO(q2.fim)]).toEqual(["2026-10-16", "2026-10-31"]);
+    expect(periodoDe("quinzenal", 2026, 10).quinzena).toBe(1);
+  });
+
+  it("período anterior volta um mês e vira o ano", () => {
+    const a = periodoAnterior(periodoDe("quinzenal", 2026, 1, 2));
+    expect([a.ano, a.mes, a.quinzena, dataISO(a.fim)]).toEqual([2025, 12, 2, "2025-12-31"]);
+    expect(periodoAnterior(periodoDe("mensal", 2026, 3)).mes).toBe(2);
+  });
+
+  it("rótulos em português", () => {
+    expect(rotuloPeriodo(periodoDe("mensal", 2026, 10))).toBe("Mensal · outubro/2026");
+    expect(rotuloPeriodo(periodoDe("quinzenal", 2026, 10, 1))).toBe("Quinzenal · 1ª quinzena de outubro/2026");
+    expect(rotuloCurto(periodoDe("quinzenal", 2026, 3, 2))).toBe("2ª quinzena de março/2026");
+    expect(isoParaBR("2026-10-05")).toBe("05/10/2026");
+    expect(chaveAnoMes(2026, 3)).toBe("2026-03");
+  });
+
+  it("sugere o último período já encerrado", () => {
+    const dia16 = new Date(2026, 10, 16);
+    expect(rotuloCurto(periodoSugerido("mensal", dia16))).toBe("outubro/2026");
+    expect(rotuloCurto(periodoSugerido("quinzenal", dia16))).toBe("1ª quinzena de novembro/2026");
+    expect(rotuloCurto(periodoSugerido("quinzenal", new Date(2026, 10, 10)))).toBe("2ª quinzena de outubro/2026");
+    expect(rotuloCurto(periodoSugerido("mensal", new Date(2026, 0, 5)))).toBe("dezembro/2025");
+    expect(periodoEncerrado(periodoDe("mensal", 2026, 10), dia16)).toBe(true);
+    expect(periodoEncerrado(periodoDe("mensal", 2026, 11), dia16)).toBe(false);
+  });
+});
+
+describe("plano de contas das despesas", () => {
+  it("categoria conhecida cai no grupo certo, ignorando caixa e acento", () => {
+    expect(grupoDaDespesa("Aluguel")).toBe("Infraestrutura");
+    expect(grupoDaDespesa("PRÓ-LABORE")).toBe("Pessoal");
+    expect(grupoDaDespesa("trafego pago")).toBe("Marketing");
+    expect(grupoDaDespesa("Marketing")).toBe("Marketing");
+    expect(grupoDaDespesa("Cafezinho")).toBe(GRUPO_OUTRAS);
+  });
+
+  it("nenhuma categoria aparece em dois grupos", () => {
+    const todas = GRUPOS_DESPESA.flatMap((g) => g.categorias.map((c) => c.toLowerCase()));
+    expect(new Set(todas).size).toBe(todas.length);
+  });
+});
+
+describe("vendas", () => {
+  const col = { data: "A", valor: "B", categoria: "C", profissional: "D", paciente: "E", primeira_vez: "F", pagamento: "G" };
+  const linhas = [
+    ["02/10/2026", "R$ 400,00", "Consulta", "Dra. Ana", "Maria Silva", "Sim", "PIX"],
+    ["03/10/2026", "600,00", "Consulta", "Dra. Ana", "maria silva", "Sim", "Crédito"],
+    ["10/10/2026", "2.000,00", "Procedimento", "Dr. Leo", "João Souza", "Não", "PIX"],
+    ["12/10/2026", "1.000,00", "procedimento", "", "Carla Lima", "", "PIX"],
+    ["30/09/2026", "999,00", "Consulta", "Dra. Ana", "Fora", "Sim", "PIX"],
+    ["", "", "", "", "", "", ""],
+    ["15/10/2026", "abc", "Consulta", "Dra. Ana", "X", "", "PIX"],
+  ];
+
+  it("soma, agrupa e conta clientes distintos", () => {
+    const r = calcularVendas(linhas, col, ...out);
+    expect(r.total).toBe(4000);
+    expect(r.lancamentos).toBe(4);
+    expect(r.linhasIlegiveis).toBe(1);
+    expect(r.porCategoria.map((c) => [c.nome, c.valor, c.quantidade, c.ticket])).toEqual([
+      ["Procedimento", 3000, 2, 1500], ["Consulta", 1000, 2, 500],
+    ]);
+    expect(r.porCategoria[0].pct).toBe(0.75);
+    expect(r.porProfissional!.map((p) => [p.nome, p.valor])).toEqual([
+      ["Dr. Leo", 2000], ["Dra. Ana", 1000], ["Não informado", 1000],
+    ]);
+    expect(r.porPagamento!.map((p) => [p.nome, p.valor])).toEqual([["PIX", 3400], ["Crédito", 600]]);
+    expect(r.porUnidade).toBeNull();
+    // Maria aparece duas vezes: é uma cliente só
+    expect(r.pacientes).toEqual({
+      atendidos: 3, ticketMedio: 1333.33, temInformacaoDeNovos: true,
+      novos: 1, faturamentoNovos: 1000, ticketNovos: 1000,
+    });
+  });
+
+  it("sem as colunas opcionais, não inventa número", () => {
+    const r = calcularVendas(linhas, { data: "A", valor: "B" }, ...out);
+    expect(r.total).toBe(4000);
+    expect(r.porProfissional).toBeNull();
+    expect(r.pacientes.atendidos).toBeNull();
+    expect(r.pacientes.ticketMedio).toBeNull();
+    expect(r.pacientes.temInformacaoDeNovos).toBe(false);
+    expect(r.porCategoria).toEqual([{ nome: "Não informado", valor: 4000, quantidade: 4, ticket: 1000, pct: 1 }]);
+  });
+
+  it("período vazio não divide por zero", () => {
+    const r = calcularVendas([], col, ...out);
+    expect(r.total).toBe(0);
+    expect(r.pacientes.ticketMedio).toBeNull();
+    expect(r.pacientes.ticketNovos).toBeNull();
+  });
+
+  it("temInformacao ignora lista só com 'Não informado'", () => {
+    expect(temInformacao([{ nome: "Não informado" }])).toBe(false);
+    expect(temInformacao([{ nome: "PIX" }])).toBe(true);
+    expect(temInformacao(null)).toBe(false);
+  });
+});
+
+describe("despesas", () => {
+  const col = { data: "A", valor: "B", categoria: "C", situacao: "D" };
+  const linhas = [
+    ["05/10/2026", "5.000,00", "Aluguel", "Pago"],
+    ["10/10/2026", "300,00", "Luz", "Pago"],
+    ["20/10/2026", "8.000,00", "Salários", "Em aberto"],
+    ["25/10/2026", "150,00", "Cafezinho", ""],
+    ["05/11/2026", "5.000,00", "Aluguel", ""],
+  ];
+
+  it("conta pela data de vencimento, paga ou não, e separa o que está em aberto", () => {
+    const r = calcularDespesas(linhas, col, ...out);
+    expect(r.total).toBe(13450);
+    expect(r.lancamentos).toBe(4);
+    expect(r.emAberto).toBe(8000);
+    expect(r.pagas).toBe(5450);
+    expect(r.porGrupo.map((g) => [g.nome, g.valor])).toEqual([
+      ["Infraestrutura", 5300], ["Pessoal", 8000], [GRUPO_OUTRAS, 150],
+    ]);
+    expect(r.porGrupo[0].categorias.map((c) => c.nome)).toEqual(["Aluguel", "Luz"]);
+    expect(r.categoriasForaDoPlano).toEqual(["Cafezinho"]);
+  });
+
+  it("sem coluna de situação, pagas e em aberto ficam nulos", () => {
+    const r = calcularDespesas(linhas, { data: "A", valor: "B", categoria: "C" }, ...out);
+    expect(r.total).toBe(13450);
+    expect(r.pagas).toBeNull();
+    expect(r.emAberto).toBeNull();
+  });
+
+  it("recorte da quinzena", () => {
+    const r = calcularDespesas(linhas, col, new Date(2026, 9, 1), new Date(2026, 9, 15));
+    expect(r.total).toBe(5300);
+  });
+});
+
+describe("leads", () => {
+  const col = { data: "A", convertido: "B", origem: "C", canal: "D", objecao: "E" };
+  const linhas = [
+    ["02/10/2026", "Agendou", "Instagram", "Whats", ""],
+    ["03/10/2026", "agendou", "instagram", "Whats", ""],
+    ["04/10/2026", "Não agendou", "Google", "Ligação", "Preço"],
+    ["05/10/2026", "", "", "Whats", ""],
+    ["01/09/2026", "Agendou", "Google", "Whats", ""],
+  ];
+
+  it("conta pelo texto de conversão configurado — 'não agendou' contém 'agendou'", () => {
+    // é a regra que o app já usa (célula CONTÉM o texto): o texto escolhido precisa ser inequívoco
+    const ingenuo = calcularLeads(linhas, col, ...out, "agendou");
+    expect(ingenuo.agendados).toBe(3);
+  });
+
+  it("funil e distribuições", () => {
+    const r = calcularLeads(
+      linhas.map((l) => [l[0], l[1] === "Não agendou" ? "Perdido" : l[1], l[2], l[3], l[4]]), col, ...out, "Agendou",
+    );
+    expect([r.total, r.agendados, r.conversao]).toEqual([4, 2, 0.5]);
+    expect(r.porOrigem!.map((o) => [o.nome, o.quantidade])).toEqual([["Instagram", 2], ["Google", 1], ["Não informado", 1]]);
+    expect(r.porCanal!.map((o) => [o.nome, o.quantidade])).toEqual([["Whats", 3], ["Ligação", 1]]);
+    expect(r.porObjecao!.map((o) => o.nome)).toEqual(["Preço"]);
+    expect(r.porInteresse).toBeNull();
+  });
+
+  it("sem leads, conversão nula", () => {
+    expect(calcularLeads([], col, ...out).conversao).toBeNull();
+  });
+});
+
+// ── Retrato completo para as seções ──────────────────────────────────────────
+
+function retrato(tipo: "mensal" | "quinzenal" = "mensal"): DadosFechamento {
+  const faturamento = calcularVendas([
+    ["02/10/2026", "6.000,00", "Consulta", "Dra. Ana", "Maria", "Sim", "PIX"],
+    ["10/10/2026", "4.000,00", "Procedimento", "Dr. Leo", "João", "Não", "Crédito"],
+  ], { data: "A", valor: "B", categoria: "C", profissional: "D", paciente: "E", primeira_vez: "F", pagamento: "G" }, ...out);
+  const despesas = calcularDespesas([
+    ["05/10/2026", "5.000,00", "Aluguel", "Pago"], ["20/10/2026", "1.000,00", "Luz", "Em aberto"],
+  ], { data: "A", valor: "B", categoria: "C", situacao: "D" }, ...out);
+  const base = {
+    versao: VERSAO_DADOS, tipo,
+    periodo: { inicio: "2026-10-01", fim: "2026-10-31", rotulo: "Mensal · outubro/2026" },
+    lidoEm: "2026-11-16T10:00:00.000Z",
+    faturamento, despesas,
+    entradas: null,
+    orcamentos: calcularOrcamentos([
+      ["02/10/2026", "Fechado", "1.000,00", "900,00"], ["03/10/2026", "Em aberto", "500,00", ""],
+    ], { data: "A", status: "B", valor_prescricao: "C", valor_venda: "D" }, ...out),
+    leads: calcularLeads([["02/10/2026", "Sim", "Instagram"], ["03/10/2026", "Não", "Google"]],
+      { data: "A", convertido: "B", origem: "C" }, ...out),
+    nps: { respostas: 10, score: 80, promotores: 8, neutros: 2, detratores: 0,
+      notas: { profissional: 4.9, recepcao: 4.5, infraestrutura: null, enfermagem: null } },
+    google: null,
+    meta: 8000,
+    anterior: { rotulo: "setembro/2026", faturamento: 8000, despesas: 6000,
+      receitasPorCategoria: { consulta: 5000, exames: 3000 }, despesasPorCategoria: { aluguel: 5000, luz: 400 } },
+    ritmo: null, caixaMes: null,
+    leituras: [
+      { fonte: "Vendas", estado: "ok" as const, mensagem: "2 lançamentos" },
+      { fonte: "Entradas", estado: "ausente" as const, mensagem: "Fonte não cadastrada" },
+    ],
+  };
+  return { ...base, alertas: gerarAlertas(base) };
+}
+
+describe("contas que combinam fontes", () => {
+  it("sem Entradas, o resultado é Faturamento x Despesas; com ela, é de caixa", () => {
+    const d = retrato();
+    expect(calcularResultado(d)).toEqual({ rotulo: "Faturamento x Despesas", base: 10000, despesas: 6000, valor: 4000 });
+    const entradas = calcularEntradas([["05/10/2026", "7.500,00"]], { data: "A", valor: "B" }, ...out);
+    expect(calcularResultado({ ...d, entradas })).toMatchObject({ rotulo: "Resultado de caixa", valor: 1500 });
+    expect(calcularResultado({ ...d, despesas: null })).toBeNull();
+  });
+
+  it("atingimento da meta e variação", () => {
+    expect(atingimentoDaMeta(retrato())).toBe(1.25);
+    expect(atingimentoDaMeta({ ...retrato(), meta: null })).toBeNull();
+    expect(variacao(110, 100)).toBeCloseTo(0.1);
+    expect(variacao(90, 100)).toBeCloseTo(-0.1);
+    expect(variacao(50, 0)).toBeNull();
+    expect(variacao(50, null)).toBeNull();
+  });
+
+  it("ritmo: média por dia útil, projeção e o que falta", () => {
+    const r = calcularRitmo({ faturamentoMes: 50000, diasUteisDecorridos: 10, diasUteisMes: 22, meta: 120000 });
+    expect(r.mediaPorDiaUtil).toBe(5000);
+    expect(r.projecao).toBe(110000);
+    expect(r.faltaParaMeta).toBe(70000);
+    expect(r.necessarioPorDiaUtil).toBe(5833.33);
+  });
+
+  it("ritmo: meta batida, sem meta e sem dias decorridos", () => {
+    const batida = calcularRitmo({ faturamentoMes: 130000, diasUteisDecorridos: 10, diasUteisMes: 22, meta: 120000 });
+    expect([batida.faltaParaMeta, batida.necessarioPorDiaUtil]).toEqual([0, null]);
+    const semMeta = calcularRitmo({ faturamentoMes: 100, diasUteisDecorridos: 1, diasUteisMes: 20, meta: null });
+    expect([semMeta.meta, semMeta.faltaParaMeta]).toEqual([null, null]);
+    const zero = calcularRitmo({ faturamentoMes: 0, diasUteisDecorridos: 0, diasUteisMes: 20, meta: 1000 });
+    expect([zero.mediaPorDiaUtil, zero.projecao]).toEqual([null, null]);
+    const fim = calcularRitmo({ faturamentoMes: 500, diasUteisDecorridos: 20, diasUteisMes: 20, meta: 1000 });
+    expect(fim.necessarioPorDiaUtil).toBeNull();
+  });
+
+  it("caixa do mês", () => {
+    expect(calcularCaixaMes({ despesasAteAData: 30000, despesasDoMes: 80000, projecaoFaturamento: 110000 }))
+      .toEqual({ despesasAteAData: 30000, provisionado: 50000, despesasDoMes: 80000, saldoProjetado: 30000 });
+    expect(calcularCaixaMes({ despesasAteAData: 1, despesasDoMes: 1, projecaoFaturamento: null }).saldoProjetado).toBeNull();
+  });
+});
+
+describe("alertas", () => {
+  it("aponta o que conferir e ordena por gravidade", () => {
+    const d = retrato();
+    const base = {
+      ...d, meta: null,
+      leituras: [...d.leituras, { fonte: "Leads", estado: "erro" as const, mensagem: "aba não encontrada" }],
+      faturamento: { ...d.faturamento!, linhasIlegiveis: 3 },
+    };
+    const a = gerarAlertas(base);
+    expect(a[0]).toMatchObject({ gravidade: "erro", area: "Leads" });
+    expect(a.map((x) => x.titulo)).toContain("3 linhas de Vendas com data ou valor ilegível");
+    expect(a.map((x) => x.titulo)).toContain("Há despesas do período ainda em aberto");
+    expect(a.map((x) => x.titulo)).toContain("Sem meta de faturamento no mês");
+    const g = a.map((x) => x.gravidade);
+    expect(g).toEqual([...g].sort((x, y) => "erro atencao info".indexOf(x) - "erro atencao info".indexOf(y)));
+  });
+
+  it("fonte ausente não é alerta; leitura limpa não gera ruído", () => {
+    const d = retrato();
+    const limpa = gerarAlertas({ ...d, despesas: { ...d.despesas!, emAberto: 0, pagas: d.despesas!.total } });
+    expect(limpa).toEqual([]);
+  });
+});
+
+describe("seções do relatório", () => {
+  const vocab = SEGMENTOS.find((s) => s.id === "clinica")!.vocab;
+
+  it("obedece ordem, seções ligadas e periodicidade", () => {
+    const s = montarSecoes(retrato(), listaPadrao("mensal"), { vocabulario: vocab });
+    expect(s.map((x) => x.id)).toEqual([
+      "resultado", "grafico", "funilLeads", "funilOrcamentos", "experiencia", "receitas",
+      "despesas", "entradas", "regimes",
+    ]);
+    const invertida = normalizarEstrutura({ mensal: [{ id: "despesas", ativa: true }, { id: "resultado", ativa: true }] }).mensal;
+    expect(montarSecoes(retrato(), invertida)[0].id).toBe("despesas");
+  });
+
+  it("resultado: números, variações, meta e vocabulário da clínica", () => {
+    const r = montarSecoes(retrato(), listaPadrao("mensal"), { vocabulario: vocab })[0];
+    expect(r.titulo).toBe("Resultado do mês");
+    const por = Object.fromEntries(r.linhas.map((l) => [l.rotulo, l]));
+    expect(limpo(por["Faturamento"].valor)).toBe("R$ 10.000,00");
+    expect(por["Faturamento"].extra).toBe("▲ 25,0%");
+    expect(por["Faturamento"].tom).toBe("bom");
+    // despesa igual ao período anterior: sem tom
+    expect(por["Despesas"].extra).toBe("= 0,0%");
+    expect(limpo(por["Faturamento x Despesas"].valor)).toBe("R$ 4.000,00");
+    expect(por["Atingimento da meta"].valor).toBe("125%");
+    expect(por["Pacientes atendidos"].valor).toBe("2");
+    expect(por["Pacientes novos"].valor).toBe("1");
+    expect(r.nota).toBe("Variações em relação a setembro/2026.");
+  });
+
+  it("indicador oculto some; sem ficha usa o vocabulário neutro", () => {
+    const lista = normalizarEstrutura({ mensal: [{ id: "resultado", ativa: true, ocultos: ["res.ticket", "res.meta"] }] }).mensal;
+    const r = montarSecoes(retrato(), lista)[0];
+    const rotulos = r.linhas.map((l) => l.rotulo);
+    expect(rotulos).not.toContain("Ticket médio");
+    expect(rotulos).not.toContain("Atingimento da meta");
+    expect(rotulos).toContain("Clientes atendidos");
+  });
+
+  it("seção sem fonte explica o motivo em vez de mostrar zeros", () => {
+    const s = montarSecoes(retrato(), listaPadrao("mensal"));
+    expect(s.find((x) => x.id === "entradas")!.vazia).toBe("sem fonte de Entradas");
+    expect(s.find((x) => x.id === "grafico")!.vazia).toContain("ainda não é gerado");
+  });
+
+  it("receitas no nível 'todas' mostra a categoria que zerou; em 'com_valor', não", () => {
+    const todas = montarSecoes(retrato(), listaPadrao("mensal")).find((x) => x.id === "receitas")!;
+    const nomes = todas.tabelas[0].linhas.map((l) => l[0]);
+    expect(nomes).toEqual(["Consulta", "Procedimento", "Exames"]);
+    expect(todas.tabelas[0].cabecalho).toContain("Variação");
+    expect(todas.tabelas[0].linhas[0].at(-1)).toBe("▲ 20,0%");
+    expect(todas.tabelas[0].linhas[1].at(-1)).toBe("nova");
+
+    const lista = normalizarEstrutura({ mensal: [{ id: "receitas", ativa: true, nivel: "com_valor" }] }).mensal;
+    const comValor = montarSecoes(retrato(), lista).find((x) => x.id === "receitas")!;
+    expect(comValor.tabelas[0].linhas.map((l) => l[0])).toEqual(["Consulta", "Procedimento"]);
+  });
+
+  it("despesas: nível 'grupos' não detalha categorias; aponta o que mais aumentou", () => {
+    const completo = montarSecoes(retrato(), listaPadrao("mensal")).find((x) => x.id === "despesas")!;
+    expect(completo.tabelas.map((t) => t.titulo)).toEqual([
+      "Por grupo", "Infraestrutura", "O que mais aumentou (contra setembro/2026)",
+    ]);
+    expect(completo.tabelas[2].linhas[0][0]).toBe("Luz");
+    const lista = normalizarEstrutura({ mensal: [{ id: "despesas", ativa: true, nivel: "grupos" }] }).mensal;
+    const soGrupos = montarSecoes(retrato(), lista).find((x) => x.id === "despesas")!;
+    expect(soGrupos.tabelas.map((t) => t.titulo)).not.toContain("Infraestrutura");
+  });
+
+  it("funil de leads no resumo não traz as tabelas de detalhe", () => {
+    const completo = montarSecoes(retrato(), listaPadrao("mensal")).find((x) => x.id === "funilLeads")!;
+    expect(completo.tabelas.map((t) => t.titulo)).toEqual(["Origem do lead"]);
+    const lista = normalizarEstrutura({ mensal: [{ id: "funilLeads", ativa: true, nivel: "resumo" }] }).mensal;
+    const resumo = montarSecoes(retrato(), lista).find((x) => x.id === "funilLeads")!;
+    expect(resumo.tabelas).toEqual([]);
+    expect(resumo.linhas.map((l) => l.rotulo)).toEqual(["Leads", "Agendados"]);
+  });
+
+  it("quinzenal: ritmo e caixa do mês", () => {
+    const d = {
+      ...retrato("quinzenal"),
+      ritmo: calcularRitmo({ faturamentoMes: 10000, diasUteisDecorridos: 11, diasUteisMes: 22, meta: 8000 }),
+      caixaMes: calcularCaixaMes({ despesasAteAData: 5000, despesasDoMes: 6000, projecaoFaturamento: 20000 }),
+    };
+    const s = montarSecoes(d, listaPadrao("quinzenal"));
+    expect(s.map((x) => x.id)).toEqual(["resultado", "ritmo", "caixaMes", "funilLeads", "funilOrcamentos", "receitas"]);
+    expect(s[0].titulo).toBe("Parcial do mês");
+    expect(s[1].linhas.find((l) => l.rotulo === "Meta do mês")).toMatchObject({ valor: "batida", tom: "bom" });
+    expect(limpo(s[2].linhas.find((l) => l.rotulo === "Saldo projetado")!.valor)).toBe("R$ 14.000,00");
+  });
+
+  it("análise só aparece quando ligada e escrita", () => {
+    const lista = normalizarEstrutura({ mensal: [{ id: "analise", ativa: true }] }).mensal;
+    const vazia = montarSecoes(retrato(), lista).find((x) => x.id === "analise")!;
+    expect(vazia.vazia).toBe("a análise ainda não foi escrita");
+    const cheia = montarSecoes(retrato(), lista, {
+      analise: "Mês forte.", acoes: [{ texto: "Rever preço", responsavel: "Ana", prazo: "30/11" }, { texto: " ", responsavel: "", prazo: "" }],
+    }).find((x) => x.id === "analise")!;
+    expect(cheia.texto).toBe("Mês forte.");
+    expect(cheia.acoes).toHaveLength(1);
+  });
+});
+
+describe("texto de entrega", () => {
+  const vocab = SEGMENTOS.find((s) => s.id === "clinica")!.vocab;
+  const lista = normalizarEstrutura({ mensal: [{ id: "analise", ativa: true }] }).mensal;
+  const texto = limpo(montarTextoFechamento("Clínica Teste", retrato(), lista, {
+    vocabulario: vocab, analise: "Mês forte.", acoes: [{ texto: "Rever preço", responsavel: "Ana", prazo: "30/11" }],
+  }));
+
+  it("abre com a clínica, a saudação do perfil e o período em DD/MM/AAAA", () => {
+    expect(texto.startsWith("*Clínica Teste*\n\nFala, Drs.!")).toBe(true);
+    expect(texto).toContain("Segue o fechamento — *Mensal · outubro/2026*");
+    expect(texto).toContain("`Período: 01/10/2026 a 31/10/2026`");
+  });
+
+  it("traz os números das seções com dado e omite as vazias", () => {
+    expect(texto).toContain("*Resultado do mês*");
+    expect(texto).toContain("➤ Faturamento: R$ 10.000,00 (▲ 25,0%)");
+    expect(texto).toContain("➤ Atingimento da meta: 125% (meta de R$ 8.000,00)");
+    expect(texto).toContain("– Consulta: R$ 6.000,00 · 1 · R$ 6.000,00 · 60% · ▲ 20,0%");
+    expect(texto).not.toContain("Entradas detalhadas");
+    expect(texto).not.toContain("Gráfico");
+    expect(texto).not.toContain("ainda não");
+  });
+
+  it("fecha com a análise e o plano de ação", () => {
+    expect(texto).toContain("*Análise e plano de ação*\nMês forte.");
+    expect(texto).toContain("1. Rever preço — Ana, até 30/11");
+  });
+
+  it("formatação brasileira", () => {
+    expect(limpo(brl(1234.5))).toBe("R$ 1.234,50");
+    expect(pct(0.1234)).toBe("12,3%");
+    expect(pct(null)).toBe("—");
+    expect(textoVariacao(-0.04)).toBe("▼ 4,0%");
+    expect(textoVariacao(null)).toBe("");
+  });
+});
+
+describe("fluxo de estados", () => {
+  it("anda na ordem e para no enviado", () => {
+    expect(ETAPAS.map((e) => e.status)).toEqual(["em_conferencia", "em_analise", "concluido", "enviado"]);
+    expect(proximoStatus("em_conferencia")).toBe("em_analise");
+    expect(proximoStatus("concluido")).toBe("enviado");
+    expect(proximoStatus("enviado")).toBeNull();
+    expect(posicaoDoStatus("concluido")).toBe(2);
+  });
+});
+
+describe("linhas sem valor lançado", () => {
+  it("valor em branco com data não é linha ilegível; traço contábil vale zero", () => {
+    const r = calcularVendas([
+      ["02/10/2026", "100,00"],
+      ["03/10/2026", ""],        // agendado, ainda sem valor: fora, sem alerta
+      ["04/10/2026", "R$ -"],    // zero no formato contábil
+      ["", "50,00"],             // valor sem data: isto sim é ilegível
+    ], { data: "A", valor: "B" }, ...out);
+    expect([r.total, r.lancamentos, r.linhasIlegiveis]).toEqual([100, 2, 1]);
+  });
+
+  it("vale também para despesas", () => {
+    const r = calcularDespesas([["05/10/2026", ""], ["06/10/2026", "10,00"]], { data: "A", valor: "B" }, ...out);
+    expect([r.total, r.lancamentos, r.linhasIlegiveis]).toEqual([10, 1, 0]);
+  });
+});

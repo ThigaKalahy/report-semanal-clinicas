@@ -45,7 +45,7 @@ export interface Database {
         Row: {
           id: string;
           clinica_id: string;
-          tipo: "pre_consulta" | "nps" | "leads" | "faturamento" | "despesa";
+          tipo: "pre_consulta" | "nps" | "leads" | "faturamento" | "despesa" | "entradas" | "orcamentos";
           sheet_id: string;
           aba_nome: string;
           coluna_data: string;
@@ -55,7 +55,7 @@ export interface Database {
         Insert: {
           id?: string;
           clinica_id: string;
-          tipo: "pre_consulta" | "nps" | "leads" | "faturamento" | "despesa";
+          tipo: "pre_consulta" | "nps" | "leads" | "faturamento" | "despesa" | "entradas" | "orcamentos";
           sheet_id: string;
           aba_nome: string;
           coluna_data: string;
@@ -179,6 +179,66 @@ export interface Database {
           clinica_id?: string;
           indicador?: "leads" | "fechamentos" | "nps" | "faturamento" | "despesas";
           ativo?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      fechamentos: {
+        Row: {
+          id: string;
+          clinica_id: string;
+          tipo: "mensal" | "quinzenal";
+          ano: number;
+          mes: number;
+          quinzena: number | null;
+          data_inicio: string;
+          data_fim: string;
+          status: "em_conferencia" | "em_analise" | "concluido" | "enviado";
+          dados: Json | null;
+          analise: string;
+          acoes: Json;
+          texto: string;
+          lido_em: string | null;
+          enviado_em: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          clinica_id: string;
+          tipo: "mensal" | "quinzenal";
+          ano: number;
+          mes: number;
+          quinzena?: number | null;
+          data_inicio: string;
+          data_fim: string;
+          status?: "em_conferencia" | "em_analise" | "concluido" | "enviado";
+          dados?: Json | null;
+          analise?: string;
+          acoes?: Json;
+          texto?: string;
+          lido_em?: string | null;
+          enviado_em?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          clinica_id?: string;
+          tipo?: "mensal" | "quinzenal";
+          ano?: number;
+          mes?: number;
+          quinzena?: number | null;
+          data_inicio?: string;
+          data_fim?: string;
+          status?: "em_conferencia" | "em_analise" | "concluido" | "enviado";
+          dados?: Json | null;
+          analise?: string;
+          acoes?: Json;
+          texto?: string;
+          lido_em?: string | null;
+          enviado_em?: string | null;
+          created_at?: string;
           updated_at?: string;
         };
         Relationships: [];
@@ -323,6 +383,8 @@ export type CheckpointIndicadorInsert =
 export type RelatorioGerado = Database["public"]["Tables"]["relatorios_gerados"]["Row"];
 export type RelatorioGeradoInsert = Database["public"]["Tables"]["relatorios_gerados"]["Insert"];
 
+export type Fechamento = Database["public"]["Tables"]["fechamentos"]["Row"];
+export type StatusFechamento = Fechamento["status"];
 export type EstruturaRelatorio = Database["public"]["Tables"]["estruturas_relatorio"]["Row"];
 
 export type PerfilCliente = Database["public"]["Tables"]["perfis_cliente"]["Row"];

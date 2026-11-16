@@ -10,6 +10,7 @@ import {
   Target,
   CalendarOff,
   ClipboardCheck,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ const mainNavItems = [
   // Antes do report: o checkpoint é a conferência que vem primeiro no fluxo.
   { href: "/checkpoint", label: "Checkpoint", icon: ClipboardCheck },
   { href: "/relatorio", label: "Gerar Report Semanal", icon: FileText },
+  { href: "/fechamentos", label: "Fechamentos", icon: Landmark },
   { href: "/dashboard", label: "Logs", icon: ScrollText },
 ];
 

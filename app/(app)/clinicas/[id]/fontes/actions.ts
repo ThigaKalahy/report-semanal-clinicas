@@ -8,7 +8,13 @@ import {
   leadsSchema,
   faturamentoSchema,
   despesaSchema,
+  entradasSchema,
+  orcamentosSchema,
 } from "./_schemas";
+import { coletarEntradas, coletarOrcamentos } from "@/lib/coletores/fontes-simples";
+import type { ResultadoEntradas } from "@/lib/coletores/entradas-calculo";
+import type { ResultadoOrcamentos } from "@/lib/coletores/orcamentos-calculo";
+import { CAMPOS_EXTRAS, CAMPOS_FONTE_SIMPLES, TERMOS_FONTE, ehFonteSimples } from "@/lib/fontes/campos";
 import { coletarFaturamento, type ResultadoFaturamento } from "@/lib/coletores/faturamento";
 import { coletarDespesa,    type ResultadoDespesa }      from "@/lib/coletores/despesa";
 import type { Json, TipoFonte } from "@/lib/supabase/types";
@@ -16,6 +22,20 @@ import type { Json, TipoFonte } from "@/lib/supabase/types";
 function buildMapeamento(tipo: TipoFonte, data: Record<string, unknown>): Record<string, unknown> {
   const m: Record<string, unknown> = {};
   const add = (key: string) => { if (data[key]) m[key] = String(data[key]); };
+
+  // Colunas opcionais novas (1ª vez, unidade, origem, canal…) — só as preenchidas
+  for (const campo of CAMPOS_EXTRAS[tipo] ?? []) add(campo.chave);
+
+  if (ehFonteSimples(tipo)) {
+    for (const campo of CAMPOS_FONTE_SIMPLES[tipo]) add(campo.chave);
+    for (const termo of TERMOS_FONTE[tipo].termos) {
+      const texto = String(data[termo.chave] ?? "").trim();
+      if (texto) m[termo.chave] = texto;
+    }
+    const li = Number(data.linha_inicial);
+    if (li > 2) m.linha_inicial = String(li);
+    return m;
+  }
 
   if (tipo === "pre_consulta") {
     add("motivo");
@@ -63,6 +83,8 @@ export async function upsertFonte(
     tipo === "nps"          ? npsSchema          :
     tipo === "leads"        ? leadsSchema         :
     tipo === "faturamento"  ? faturamentoSchema   :
+    tipo === "entradas"     ? entradasSchema      :
+    tipo === "orcamentos"   ? orcamentosSchema    :
                               despesaSchema;
 
   const parsed = schema.safeParse(rawData);
@@ -175,5 +197,49 @@ export async function testarLeituraDespesa(
     return { ok: true, tipo: "despesa", resultado };
   } catch (e) {
     return { erro: e instanceof Error ? e.message : "Erro ao ler planilha." };
+  }
+}
+
+// ── Teste de leitura das fontes de aba única (Entradas e Orçamentos) ──────────
+
+export type TesteResultadoSimples =
+  | { ok: true; tipo: "entradas"; resultado: ResultadoEntradas }
+  | { ok: true; tipo: "orcamentos"; resultado: ResultadoOrcamentos }
+  | { erro: string };
+
+/** Datas em DD/MM/AAAA, como digitadas na tela. */
+function lerDataBR(s: string): Date | null {
+  const m = s.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return d.getDate() === Number(m[1]) && d.getMonth() === Number(m[2]) - 1 ? d : null;
+}
+
+export async function testarLeituraSimples(
+  clinicaId: string,
+  tipo: "entradas" | "orcamentos",
+  dataInicioBR: string,
+  dataFimBR: string,
+): Promise<TesteResultadoSimples> {
+  try {
+    const ini = lerDataBR(dataInicioBR);
+    const fim = lerDataBR(dataFimBR);
+    if (!ini || !fim) return { erro: "Informe as duas datas no formato DD/MM/AAAA." };
+    if (fim < ini) return { erro: "A data final vem antes da inicial." };
+
+    const { data: fonte } = await getSupabaseAdmin()
+      .from("fontes_dados")
+      .select("*")
+      .eq("clinica_id", clinicaId)
+      .eq("tipo", tipo)
+      .maybeSingle();
+    if (!fonte) return { erro: "Fonte não configurada." };
+
+    if (tipo === "entradas") {
+      return { ok: true, tipo, resultado: await coletarEntradas(fonte, ini, fim) };
+    }
+    return { ok: true, tipo, resultado: await coletarOrcamentos(fonte, ini, fim) };
+  } catch (e) {
+    return { erro: e instanceof Error ? e.message : "Erro ao ler a planilha." };
   }
 }

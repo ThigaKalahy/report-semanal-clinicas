@@ -33,6 +33,8 @@ export default async function FontesPage({ params }: Props) {
   const leads        = fontes?.find((f) => f.tipo === "leads")        as FonteDados | undefined;
   const faturamento  = fontes?.find((f) => f.tipo === "faturamento")  as FonteDados | undefined;
   const despesa      = fontes?.find((f) => f.tipo === "despesa")      as FonteDados | undefined;
+  const entradas     = fontes?.find((f) => f.tipo === "entradas")     as FonteDados | undefined;
+  const orcamentos   = fontes?.find((f) => f.tipo === "orcamentos")   as FonteDados | undefined;
 
   return (
     <div className="p-8 space-y-8 max-w-3xl">
@@ -86,6 +88,22 @@ export default async function FontesPage({ params }: Props) {
         description="Planilha com os lançamentos de despesas operacionais (data, categoria, valor pago)."
         clinicaId={id}
         fonte={despesa ?? null}
+      />
+
+      <FonteSection
+        tipo="entradas"
+        title="Entradas"
+        description="Planilha com os recebimentos — o que entrou no caixa, pela data do recebimento. Usada no resultado de caixa do fechamento mensal."
+        clinicaId={id}
+        fonte={entradas ?? null}
+      />
+
+      <FonteSection
+        tipo="orcamentos"
+        title="Orçamentos"
+        description="Planilha com os orçamentos gerados e o status de cada um. Alimenta o funil de orçamentos (cancelados ficam fora da conversão)."
+        clinicaId={id}
+        fonte={orcamentos ?? null}
       />
     </div>
   );

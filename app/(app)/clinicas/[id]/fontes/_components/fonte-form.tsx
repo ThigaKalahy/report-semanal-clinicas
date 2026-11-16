@@ -17,6 +17,8 @@ import {
   leadsSchema,
   faturamentoSchema,
   despesaSchema,
+  entradasSchema,
+  orcamentosSchema,
   type PreConsultaFormValues,
   type NpsFormValues,
   type LeadsFormValues,
@@ -25,6 +27,10 @@ import {
 } from "../_schemas";
 import type { FonteDados, Json, TipoFonte } from "@/lib/supabase/types";
 import { detectarPorTipo } from "@/lib/fontes/detectar-colunas";
+import {
+  CAMPOS_EXTRAS, CAMPOS_FONTE_SIMPLES, ROTULO_DATA, TERMOS_FONTE, rotuloDoCampo,
+} from "@/lib/fontes/campos";
+import type { TipoFonteSimples } from "@/lib/fontes/campos";
 
 // ── Column import utilities ───────────────────────────────────────────────────
 
@@ -50,15 +56,6 @@ function parseColumnText(text: string): Record<string, string> {
   return result;
 }
 
-/** Rótulos curtos para o resumo do que foi reconhecido. */
-const ROTULO_CAMPO: Record<string, string> = {
-  coluna_data: "Data", valor_pago: "Valor", categoria: "Categoria", profissional: "Profissional",
-  convertido: "Conversão", motivo: "Motivo", origem: "Origem",
-  nota_geral: "Nota geral", nota_profissional: "Nota profissional", nota_recepcao: "Nota recepção",
-  nota_infraestrutura: "Nota infraestrutura", nota_enfermagem: "Nota enfermagem",
-  comentario: "Comentário", nome_paciente: "Nome", anonimato: "Anonimato", indicacao: "Indicação",
-};
-
 function indiceDaLetra(letra: string): number {
   let idx = 0;
   for (const ch of letra) idx = idx * 26 + (ch.charCodeAt(0) - 64);
@@ -80,7 +77,7 @@ function detectar(tipo: TipoFonte, cols: Record<string, string>): Record<string,
     const resumo = campos
       .map(([campo, c]) => {
         const titulo = c.cabecalho.length > 32 ? `${c.cabecalho.slice(0, 31)}…` : c.cabecalho;
-        return `${ROTULO_CAMPO[campo] ?? campo}: ${c.letra} “${titulo}”${c.exata ? "" : " (confira)"}`;
+        return `${campo === "coluna_data" ? "Data" : rotuloDoCampo(tipo, campo)}: ${c.letra} “${titulo}”${c.exata ? "" : " (confira)"}`;
       })
       .join(" · ");
     const aproximadas = campos.filter(([, c]) => !c.exata).length;
@@ -202,7 +199,7 @@ function AbasMensaisEditor({ value, onChange }: AbasMensaisEditorProps) {
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 interface Props {
-  tipo: "pre_consulta" | "nps" | "leads" | "faturamento" | "despesa";
+  tipo: TipoFonte;
   clinicaId: string;
   existingFonte: FonteDados | null;
   onSuccess: () => void;
@@ -244,6 +241,46 @@ function ColInput({ id, label, required, error, onChange, ...props }: ColInputPr
         {...props}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+// ── Colunas opcionais (catálogo em lib/fontes/campos.ts) ─────────────────────
+
+/** Valores iniciais das colunas opcionais, a partir do mapeamento salvo. */
+function extrasIniciais(tipo: TipoFonte, m: Record<string, string>): Record<string, string> {
+  return Object.fromEntries((CAMPOS_EXTRAS[tipo] ?? []).map((c) => [c.chave, m[c.chave] ?? ""]));
+}
+
+function CamposExtras({
+  tipo, form, errors, prefixo,
+}: {
+  tipo: TipoFonte;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  form: ReturnType<typeof useForm<any>>;
+  errors: Record<string, { message?: string } | undefined>;
+  prefixo: string;
+}) {
+  const campos = CAMPOS_EXTRAS[tipo] ?? [];
+  if (campos.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      <div className="space-y-0.5">
+        <SectionLabel>Colunas opcionais</SectionLabel>
+        <p className="text-xs text-muted-foreground">
+          Não mudam o Report Semanal. Cada uma destrava um indicador dos relatórios quinzenal e
+          mensal — deixe em branco o que a planilha não tiver.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {campos.map((c) => (
+          <div key={c.chave} className="space-y-1">
+            <ColInput id={`${prefixo}_${c.chave}`} label={c.rotulo}
+              {...form.register(c.chave)} error={errors[c.chave]?.message} />
+            {c.ajuda && <p className="text-[11px] text-muted-foreground leading-snug">{c.ajuda}</p>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -560,6 +597,7 @@ function LeadsForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props
       convertido:      m.convertido ?? "",
       valor_conversao: m.valor_conversao ?? "sim",
       linha_inicial:   Number(m.linha_inicial ?? 2),
+      ...extrasIniciais("leads", m),
     },
   });
 
@@ -626,6 +664,8 @@ function LeadsForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props
             {errors.valor_conversao && <p className="text-xs text-destructive">{errors.valor_conversao.message}</p>}
           </div>
         </div>
+        <CamposExtras tipo="leads" form={form} prefixo="leads"
+          errors={errors as Record<string, { message?: string } | undefined>} />
         <div className="space-y-1.5">
           <Label htmlFor="linha_inicial">
             Linha inicial dos dados
@@ -672,6 +712,7 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
       valor_pago:    m.valor_pago   ?? "",
       profissional:  m.profissional ?? "",
       linha_inicial: Number(m.linha_inicial ?? 2),
+      ...extrasIniciais("faturamento", m),
     },
   });
 
@@ -753,6 +794,8 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
           <ColInput id="fat_valor_pago"   label="Valor pago"   required {...form.register("valor_pago")}   error={errors.valor_pago?.message} />
           <ColInput id="fat_profissional" label="Profissional"          {...form.register("profissional")} error={errors.profissional?.message} />
         </div>
+        <CamposExtras tipo="faturamento" form={form} prefixo="fat"
+          errors={errors as Record<string, { message?: string } | undefined>} />
         <div className="space-y-1.5">
           <Label htmlFor="fat_linha_inicial">
             Linha inicial dos dados
@@ -793,6 +836,7 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
       categoria:     m.categoria  ?? "",
       valor_pago:    m.valor_pago ?? "",
       linha_inicial: Number(m.linha_inicial ?? 2),
+      ...extrasIniciais("despesa", m),
     },
   });
 
@@ -873,6 +917,8 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
           <ColInput id="desp_categoria"  label="Categoria"  required {...form.register("categoria")}  error={errors.categoria?.message} />
           <ColInput id="desp_valor_pago" label="Valor pago" required {...form.register("valor_pago")} error={errors.valor_pago?.message} />
         </div>
+        <CamposExtras tipo="despesa" form={form} prefixo="desp"
+          errors={errors as Record<string, { message?: string } | undefined>} />
         <div className="space-y-1.5">
           <Label htmlFor="desp_linha_inicial">
             Linha inicial dos dados
@@ -894,10 +940,153 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
 
 // ── Public export ─────────────────────────────────────────────────────────────
 
+// ── Fontes de aba única: Entradas e Orçamentos ───────────────────────────────
+
+const ESQUEMA_SIMPLES = { entradas: entradasSchema, orcamentos: orcamentosSchema } as const;
+
+function FonteSimplesForm({
+  tipo, clinicaId, existingFonte, onSuccess, onCancel,
+}: Omit<Props, "tipo"> & { tipo: TipoFonteSimples }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting]       = useState(false);
+  const [importText, setImportText]     = useState("");
+  const [showImporter, setShowImporter] = useState(false);
+  const m = existingFonte ? getMapeamento(existingFonte.mapeamento) : {};
+  const campos = CAMPOS_FONTE_SIMPLES[tipo];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const form = useForm<any>({
+    resolver: zodResolver(ESQUEMA_SIMPLES[tipo]),
+    defaultValues: {
+      sheet_id:      existingFonte?.sheet_id ?? "",
+      aba_nome:      existingFonte?.aba_nome ?? "Base",
+      coluna_data:   existingFonte?.coluna_data ?? "",
+      linha_inicial: Number(m.linha_inicial ?? 2),
+      ...Object.fromEntries(campos.map((c) => [c.chave, m[c.chave] ?? ""])),
+      ...Object.fromEntries(TERMOS_FONTE[tipo].termos.map((t) => [t.chave, m[t.chave] ?? ""])),
+    },
+  });
+
+  const errors = form.formState.errors as Record<string, { message?: string } | undefined>;
+
+  async function testConnection() {
+    setIsTesting(true);
+    await testSheetConnection(
+      form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter,
+      Math.max(1, Number(form.getValues("linha_inicial") || 2) - 1),
+    );
+    setIsTesting(false);
+  }
+
+  function applyDetection() {
+    const detected = detectar(tipo, parseColumnText(importText));
+    let filled = 0;
+    for (const [key, val] of Object.entries(detected)) {
+      if (val) { form.setValue(key, val, { shouldValidate: true }); filled++; }
+    }
+    toast.success(filled ? `${filled} campo(s) preenchido(s).` : "Nenhum campo reconhecido automaticamente.");
+    if (filled) setShowImporter(false);
+  }
+
+  async function onSubmit(data: Record<string, unknown>) {
+    setIsSubmitting(true);
+    const result = await upsertFonte(clinicaId, tipo, data);
+    setIsSubmitting(false);
+    if (result.error) { toast.error(result.error); }
+    else { toast.success("Fonte configurada."); onSuccess(); }
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      <div className="space-y-4">
+        <SectionLabel>Planilha</SectionLabel>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${tipo}_sheet_id`}>Sheet ID <span className="text-destructive">*</span></Label>
+          <Input id={`${tipo}_sheet_id`} {...form.register("sheet_id")}
+            placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" className="font-mono text-xs" />
+          <p className="text-xs text-muted-foreground">
+            Na URL: <code className="bg-muted px-1 rounded">docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit</code>
+          </p>
+          {errors.sheet_id && <p className="text-xs text-destructive">{errors.sheet_id.message}</p>}
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${tipo}_aba_nome`}>Aba <span className="text-destructive">*</span></Label>
+            <Input id={`${tipo}_aba_nome`} {...form.register("aba_nome")} placeholder="Base" />
+            {errors.aba_nome && <p className="text-xs text-destructive">{errors.aba_nome.message}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${tipo}_linha_inicial`}>
+              Linha inicial dos dados
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">(número)</span>
+            </Label>
+            <Input id={`${tipo}_linha_inicial`} type="number" min={1} className="w-24"
+              {...form.register("linha_inicial", { valueAsNumber: true })} />
+            {errors.linha_inicial && <p className="text-xs text-destructive">{String(errors.linha_inicial.message)}</p>}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          O cabeçalho é lido na linha logo acima dos dados (padrão: dados na linha 2, cabeçalho na 1).
+        </p>
+        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={testConnection} disabled={isTesting}>
+          {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+          {isTesting ? "Testando…" : "Testar conexão"}
+        </Button>
+      </div>
+      <Separator />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionLabel>Mapeamento de colunas</SectionLabel>
+          <button type="button" onClick={() => setShowImporter((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {showImporter ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}Importar
+          </button>
+        </div>
+        {showImporter && (
+          <ColImporter value={importText} onChange={setImportText}
+            onApply={applyDetection} onClose={() => setShowImporter(false)} />
+        )}
+        <div className="grid grid-cols-2 gap-4">
+          <ColInput id={`${tipo}_coluna_data`} label={ROTULO_DATA[tipo]} required
+            {...form.register("coluna_data")} error={errors.coluna_data?.message} />
+          {campos.map((c) => (
+            <div key={c.chave} className="space-y-1">
+              <ColInput id={`${tipo}_${c.chave}`} label={c.rotulo} required={c.obrigatorio}
+                {...form.register(c.chave)} error={errors[c.chave]?.message} />
+              {c.ajuda && <p className="text-[11px] text-muted-foreground leading-snug">{c.ajuda}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+      <Separator />
+      <div className="space-y-3">
+        <div className="space-y-0.5">
+          <SectionLabel>Palavras desta clínica</SectionLabel>
+          <p className="text-xs text-muted-foreground">{TERMOS_FONTE[tipo].ajuda}</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {TERMOS_FONTE[tipo].termos.map((t) => (
+            <div key={t.chave} className="space-y-1.5">
+              <Label htmlFor={`${tipo}_${t.chave}`}>
+                {t.rotulo}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">(separe com ;)</span>
+              </Label>
+              <Input id={`${tipo}_${t.chave}`} {...form.register(t.chave)} placeholder={t.exemplo} className="text-sm" />
+              {errors[t.chave] && <p className="text-xs text-destructive">{errors[t.chave]?.message}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+      <FormFooter isSubmitting={isSubmitting} onCancel={onCancel} />
+    </form>
+  );
+}
+
 export function FonteForm(props: Props) {
   if (props.tipo === "pre_consulta") return <PreConsultaForm {...props} />;
   if (props.tipo === "nps")          return <NpsForm {...props} />;
   if (props.tipo === "leads")        return <LeadsForm {...props} />;
   if (props.tipo === "faturamento")  return <FaturamentoForm {...props} />;
-  return <DespesaForm {...props} />;
+  if (props.tipo === "despesa")      return <DespesaForm {...props} />;
+  return <FonteSimplesForm {...props} tipo={props.tipo} />;
 }

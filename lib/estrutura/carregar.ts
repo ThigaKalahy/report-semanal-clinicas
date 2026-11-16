@@ -38,9 +38,7 @@ function mapa(m: Json): Record<string, unknown> {
  * O que a clínica tem cadastrado hoje, a partir das fontes de dados. Serve para
  * a tela de configuração avisar quais seções e indicadores ficariam vazios.
  *
- * Entradas, Orçamentos e os campos extras de Vendas e Leads (1ª vez, unidade,
- * meio de pagamento, interesse, canal, objeção) ainda não têm cadastro neste
- * app — por isso aparecem como indisponíveis até as fontes existirem.
+ * As chaves batem com as de `fontes_dados.mapeamento` (lib/fontes/campos.ts).
  */
 export function disponibilidadeDasFontes(
   fontes: Pick<FonteDados, "tipo" | "mapeamento">[],
@@ -75,8 +73,8 @@ export function disponibilidadeDasFontes(
     "vendas.primeiraVez": tem("faturamento", "primeira_vez"),
     "vendas.unidade": tem("faturamento", "unidade"),
     "vendas.pagamento": tem("faturamento", "pagamento"),
-    entradas: false,
-    orcamentos: false,
-    "orcamentos.motivo": false,
+    entradas: !!de("entradas"),
+    orcamentos: !!de("orcamentos"),
+    "orcamentos.motivo": tem("orcamentos", "objecao"),
   };
 }

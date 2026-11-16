@@ -37,9 +37,9 @@ const AVISO_TIPO: Record<Periodicidade, string> = {
   semanal:
     "Vale para o texto de pesquisas do WhatsApp e para o infográfico do Report Semanal. A evolução das metas continua sendo gerada à parte.",
   quinzenal:
-    "A estrutura já fica salva para esta clínica. O relatório quinzenal passa a usá-la quando o módulo de fechamento entrar.",
+    "Vale para a tela de indicadores e para o texto de entrega dos fechamentos quinzenais desta clínica.",
   mensal:
-    "A estrutura já fica salva para esta clínica. O relatório mensal passa a usá-la quando o módulo de fechamento entrar.",
+    "Vale para a tela de indicadores e para o texto de entrega dos fechamentos mensais desta clínica. O gráfico anual e a visão de caixa e competência ainda não são gerados.",
 };
 
 export function EstruturaForm({

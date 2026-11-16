@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: sheet_id,
       // Aspas no nome da aba: sem elas, abas como "2026" não são reconhecidas
-      range: `'${aba_nome.replace(/'/g, "''")}'!A${linha}:Z${linha}`,
+      range: `'${aba_nome.replace(/'/g, "''")}'!A${linha}:AZ${linha}`,
     });
     const primeira_linha = res.data.values?.[0] ?? [];
     return NextResponse.json({ ok: true, primeira_linha });

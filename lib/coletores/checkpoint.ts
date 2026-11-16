@@ -119,7 +119,7 @@ export async function lerFonteCheckpoint(
 
   for (const aba of abas) {
     if (!aba) continue;
-    const rows = await readSheetRange(fonte.sheet_id, `${aba}!A:Z`);
+    const rows = await readSheetRange(fonte.sheet_id, `${aba}!A:AZ`);
     abasLidas.push(aba);
 
     for (const row of rows.slice(linhaInicial - 1)) {

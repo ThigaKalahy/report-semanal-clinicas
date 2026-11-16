@@ -42,6 +42,10 @@ export const DEFINICOES: Record<TipoFonte, DefinicaoFonte> = {
       "descricao da venda", "descricao do recebimento", "descricao",
     ],
     profissional: ["profissional responsavel", "profissional", "medico responsavel", "medico", "dentista"],
+    paciente:     ["paciente", "nome do paciente", "nome paciente", "cliente", "nome do cliente", "nome"],
+    primeira_vez: ["1ª vez na clinica?", "1a vez na clinica?", "primeira vez", "paciente novo", "novo?"],
+    pagamento:    ["meio de pagamento", "forma de pagamento", "pagamento"],
+    unidade:      ["unidade", "centro de custo", "filial"],
   },
   despesa: {
     // Regra Gestfy: despesa conta pela data de VENCIMENTO. A de pagamento só
@@ -57,6 +61,14 @@ export const DEFINICOES: Record<TipoFonte, DefinicaoFonte> = {
       "valor r$", "valor pago", "valor total pago da parcela (r$)",
       "valor pago da parcela (r$)", "vl pago r$", "vl pago", "vl receb r$", "vl receb", "valor",
     ],
+    // Vem depois de coluna_data: se a planilha só tem a data de pagamento, ela
+    // já foi usada como data da despesa e este campo fica vazio.
+    data_pagamento: ["data pgto", "data de pagamento", "data pagamento", "data do ultimo pagamento"],
+    situacao:       ["pago?", "pago", "status", "situacao"],
+    periodicidade:  ["periodicidade", "recorrencia"],
+    competencia:    ["competencia", "mes de competencia", "mes_comp", "data de competencia"],
+    centro_custo:   ["centro de custo", "unidade"],
+    descricao:      ["descricao", "historico", "fornecedor"],
   },
   leads: {
     coluna_data: [
@@ -65,6 +77,42 @@ export const DEFINICOES: Record<TipoFonte, DefinicaoFonte> = {
       "data", "carimbo de data/hora",
     ],
     convertido: ["status final", "agendou?", "convertido", "status", "situacao"],
+    origem: [
+      "origem", "origem do lead", "por onde veio?", "como conheceu", "como conheceu?",
+      "onde conheceu?", "onde conheceu",
+    ],
+    canal:       ["canal", "contato cliente"],
+    interesse:   ["interesse", "servico", "servico buscado", "queixa", "queixa/objetivo", "procedimento"],
+    objecao:     ["objecao", "objecao (caso nao agende)", "motivo de perda"],
+    responsavel: ["responsavel", "atendente"],
+  },
+  entradas: {
+    coluna_data: [
+      "data receb", "data do recebimento", "data de recebimento", "data recebimento",
+      "data do ultimo pagamento", "data pgto", "data de pagamento", "data",
+    ],
+    valor: [
+      "valor total recebido da parcela (r$)", "valor recebido da parcela (r$)", "vl receb r$",
+      "vl receb", "valor recebido", "valor r$", "valor",
+    ],
+    situacao:    ["status recebido", "status do recebimento", "recebido?", "recebido", "status", "situacao"],
+    categoria:   ["categoria", "categoria 1", "categoria gestfy"],
+    forma:       ["forma receb", "forma de recebimento", "forma de pagamento", "meio de pagamento"],
+    competencia: ["data de competencia", "competencia", "mes de competencia"],
+    descricao:   ["descricao", "cliente/forneced/descricao", "historico"],
+  },
+  orcamentos: {
+    coluna_data:      ["data", "data da consulta", "data do orcamento"],
+    paciente:         ["nome paciente", "paciente", "cliente", "nome"],
+    profissional:     ["medico responsavel", "profissional", "medico"],
+    prescricao:       ["prescricao de tratamentos?", "prescricao de tratamento?", "prescricao"],
+    status:           ["fechamento", "status do orcamento", "status orcamento", "situacao", "status"],
+    valor_venda:      ["valor da venda", "valor fechado", "valor vendido"],
+    valor_prescricao: ["valor prescricao", "valor da prescricao", "valor orcado", "valor do orcamento"],
+    objecao: [
+      "objecao do orcamento", "motivo nao fechou", "motivo de nao fechamento", "motivo da perda",
+      "motivo de perda", "objecao", "motivo",
+    ],
   },
   // A ordem dos campos importa na passada aproximada: perguntas longas de
   // formulário compartilham palavras ("nota", "profissional", "indicaria"),

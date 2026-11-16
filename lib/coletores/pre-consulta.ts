@@ -56,7 +56,7 @@ export async function coletarPreConsulta(
   dataFim: Date
 ): Promise<ResultadoPreConsulta> {
   const mapeamento = getMapeamento(fonte.mapeamento);
-  const rows = await readSheetRange(fonte.sheet_id, `${fonte.aba_nome}!A:Z`);
+  const rows = await readSheetRange(fonte.sheet_id, `${fonte.aba_nome}!A:AZ`);
 
   const dataIdx = colIndex(fonte.coluna_data);
   const motivoIdx = mapeamento.motivo ? colIndex(mapeamento.motivo) : -1;

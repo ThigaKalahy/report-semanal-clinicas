@@ -173,7 +173,7 @@ export async function coletarDespesa(
   const diagPrimeiras: DiagnosticoLinha[] = [];
 
   for (const { abaNome } of abasResolvidas) {
-    const rows = await readSheetRange(fonte.sheet_id, `${abaNome}!A:Z`);
+    const rows = await readSheetRange(fonte.sheet_id, `${abaNome}!A:AZ`);
     abas_lidas.push(abaNome);
 
     if (rows.length === 0) continue;

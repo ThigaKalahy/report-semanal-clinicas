@@ -142,7 +142,7 @@ export async function coletarNPS(
   dataFim: Date
 ): Promise<ResultadoNPS> {
   const mapeamento = getMapeamento(fonte.mapeamento);
-  const rows = await readSheetRange(fonte.sheet_id, `${fonte.aba_nome}!A:Z`);
+  const rows = await readSheetRange(fonte.sheet_id, `${fonte.aba_nome}!A:AZ`);
 
   const dataIdx = colIndex(fonte.coluna_data);
   const idx = (key: string) => (mapeamento[key] ? colIndex(mapeamento[key]) : -1);

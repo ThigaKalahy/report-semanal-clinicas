@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Building2, FileText, Settings, Moon, Sun, ClipboardCheck,
+  LayoutDashboard, Building2, FileText, Settings, Moon, Sun, ClipboardCheck, Landmark,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { label: "Clínicas",        href: "/clinicas",      icon: Building2       },
   { label: "Checkpoint",      href: "/checkpoint",    icon: ClipboardCheck  },
   { label: "Gerar Relatório", href: "/relatorio",     icon: FileText        },
+  { label: "Fechamentos",     href: "/fechamentos",   icon: Landmark        },
   { label: "Configurações",   href: "/configuracoes", icon: Settings        },
 ];
 

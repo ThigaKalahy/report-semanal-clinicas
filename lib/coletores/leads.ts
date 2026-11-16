@@ -39,7 +39,7 @@ export async function coletarLeads(
   dataFim: Date
 ): Promise<ResultadoLeads> {
   const mapeamento    = getMapeamento(fonte.mapeamento);
-  const range         = `${fonte.aba_nome}!A:Z`;
+  const range         = `${fonte.aba_nome}!A:AZ`;
   const rows          = await readSheetRange(fonte.sheet_id, range);
 
   const dataIdx        = colIndex(fonte.coluna_data);

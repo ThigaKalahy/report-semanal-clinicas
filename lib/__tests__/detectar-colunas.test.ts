@@ -89,7 +89,8 @@ describe("detectarColunas — planilhas reais de cada fonte", () => {
     ]);
     // "Categoria ajustada" (E) vence a "Categoria" bruta (D): é a curadoria da planilha
     expect(letras(d)).toEqual({
-      coluna_data: "A", categoria: "E", profissional: "F", valor_pago: "H",
+      coluna_data: "A", paciente: "B", primeira_vez: "C", categoria: "E",
+      profissional: "F", pagamento: "G", valor_pago: "H",
     });
     expect(Object.values(d).every((c) => c.exata)).toBe(true);
   });
