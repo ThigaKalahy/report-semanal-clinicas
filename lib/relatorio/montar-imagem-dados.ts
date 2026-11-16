@@ -8,6 +8,8 @@ import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 import type { GrupoFinanceiro } from "@/lib/coletores/faturamento";
 import type { AvaliacaoGoogle } from "@/lib/coletores/google-places";
+import { cap } from "@/lib/perfil/vocabulario";
+import type { Vocabulario } from "@/lib/perfil/vocabulario";
 import type {
   RelatorioImagemData,
   FaturamentoVisao,
@@ -162,8 +164,20 @@ export function buildComentarios(
   nps: ResultadoNPS | null,
   google: ResultadoGoogle | null,
   googleManual?: AvaliacaoGoogle[] | null,
+  termoCliente?: string | null,
 ): ComentarioItem[] {
   const itens: ComentarioItem[] = [];
+
+  // O coletor de NPS assina os comentários sem nome como "Paciente" e os
+  // sigilosos como "Paciente (anônimo)". Quando a clínica chama de outro jeito
+  // (ex: "cliente"), troca só essa palavra — a regra de anonimato não muda.
+  const generico = termoCliente?.trim() ? cap(termoCliente.trim()) : "Paciente";
+  const assinar = (nome: string): string => {
+    const n = nome.trim();
+    if (!n || n === "Paciente") return generico;
+    if (n === "Paciente (anônimo)") return `${generico} (anônimo)`;
+    return n;
+  };
 
   for (const c of nps?.comentarios ?? []) {
     const texto = (c.comentario ?? "").trim();
@@ -171,7 +185,7 @@ export function buildComentarios(
     const nota = typeof c.nota === "number" && Number.isFinite(c.nota) ? c.nota : null;
     itens.push({
       texto,
-      autor: (c.nome ?? "").trim() || "Paciente",
+      autor: assinar(c.nome ?? ""),
       origem: "nps",
       nota,
       critica: nota !== null && nota <= 6,
@@ -189,7 +203,7 @@ export function buildComentarios(
     const nota = typeof a.nota === "number" && Number.isFinite(a.nota) ? a.nota : null;
     itens.push({
       texto,
-      autor: (a.autor ?? "").trim() || "Paciente",
+      autor: (a.autor ?? "").trim() || generico,
       origem: "google",
       nota,
       critica: nota !== null && nota <= 3,
@@ -214,6 +228,7 @@ export function montarDadosImagem(
   porProfissionalFaturamento?: Record<string, GrupoFinanceiro> | null,
   incluirComentarios?: boolean,                  // página 2 (feedbacks)
   googleManualAvaliacoes?: AvaliacaoGoogle[] | null,
+  vocabulario?: Vocabulario | null,              // perfil do cliente
 ): RelatorioImagemData {
   void pre; // disponível para expansão futura
 
@@ -227,7 +242,7 @@ export function montarDadosImagem(
   // Só coleta comentários quando a página de feedbacks foi pedida — evita
   // guardar texto de paciente no relatório sem necessidade.
   const comentarios = incluirComentarios
-    ? buildComentarios(nps, google, googleManualAvaliacoes)
+    ? buildComentarios(nps, google, googleManualAvaliacoes, vocabulario?.cliente)
     : undefined;
 
   return {
@@ -250,5 +265,8 @@ export function montarDadosImagem(
       por_profissional: porProfissionalFaturamento ?? undefined,
     } : undefined,
     comentarios,
+    termos: vocabulario
+      ? { cliente: vocabulario.cliente, clientes: vocabulario.clientes }
+      : undefined,
   };
 }

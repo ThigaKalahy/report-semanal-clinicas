@@ -1,10 +1,15 @@
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
+import { contextoDaFicha } from "@/lib/perfil/ficha";
+import type { FichaCliente } from "@/lib/perfil/ficha";
 
 function isNA(v: string | number | null | undefined): boolean {
   return v === null || v === undefined || String(v) === "N/A" || String(v) === "";
 }
 
-export function montarContextoIA(dados: RelatorioImagemData): string {
+export function montarContextoIA(
+  dados: RelatorioImagemData,
+  ficha?: FichaCliente | null,
+): string {
   const { cabecalho, rodape, visaoGeral } = dados;
   const fat = visaoGeral.faturamento;
   const ng  = visaoGeral.npsGoogle;
@@ -73,6 +78,10 @@ export function montarContextoIA(dados: RelatorioImagemData): string {
     if (!isNA(com.conversao_orcamentos)) lines.push(`  Conversão de orçamentos: ${com.conversao_orcamentos}`);
   }
 
+  // Perfil do cliente por último: é contexto de redação, não dado a citar.
+  const perfil = contextoDaFicha(ficha);
+  if (perfil) lines.push("", perfil);
+
   return lines.join("\n");
 }
 
@@ -86,6 +95,7 @@ export const SYSTEM_PROMPT = `Você recebe dados JÁ CALCULADOS de uma clínica 
 5. Proibido linguagem vaga: "melhorar", "otimizar", "acompanhar", "resultado expressivo", "canal forte", "de longe o principal".
 6. Não cite nomes de pacientes (os dados de entrada já vêm anonimizados; nunca reintroduza nomes próprios de pacientes).
 7. Não repita a mesma informação entre destaque, alerta e ação.
+8. Se a entrada trouxer "PERFIL DO CLIENTE", use-o só para calibrar a redação: adote o vocabulário indicado, respeite o tom pedido, priorize o que conversa com as prioridades do momento e não toque nos assuntos a evitar. O perfil NÃO é fonte de números — nenhum valor citado nele pode aparecer como resultado do período.
 
 ## COMO CLASSIFICAR (evita sobreposição)
 - DESTAQUE = leitura do que aconteceu. Descreve um ESTADO.

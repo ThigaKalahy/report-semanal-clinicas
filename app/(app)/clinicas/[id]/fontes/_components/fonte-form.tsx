@@ -23,7 +23,8 @@ import {
   type FaturamentoFormValues,
   type DespesaFormValues,
 } from "../_schemas";
-import type { FonteDados, Json } from "@/lib/supabase/types";
+import type { FonteDados, Json, TipoFonte } from "@/lib/supabase/types";
+import { detectarPorTipo } from "@/lib/fontes/detectar-colunas";
 
 // ── Column import utilities ───────────────────────────────────────────────────
 
@@ -49,60 +50,60 @@ function parseColumnText(text: string): Record<string, string> {
   return result;
 }
 
-function matchCol(cols: Record<string, string>, ...keywords: string[]): string {
-  for (const [letter, name] of Object.entries(cols)) {
-    const lower = name.toLowerCase();
-    if (keywords.some((kw) => lower.includes(kw))) return letter;
+/** Rótulos curtos para o resumo do que foi reconhecido. */
+const ROTULO_CAMPO: Record<string, string> = {
+  coluna_data: "Data", valor_pago: "Valor", categoria: "Categoria", profissional: "Profissional",
+  convertido: "Conversão", motivo: "Motivo", origem: "Origem",
+  nota_geral: "Nota geral", nota_profissional: "Nota profissional", nota_recepcao: "Nota recepção",
+  nota_infraestrutura: "Nota infraestrutura", nota_enfermagem: "Nota enfermagem",
+  comentario: "Comentário", nome_paciente: "Nome", anonimato: "Anonimato", indicacao: "Indicação",
+};
+
+function indiceDaLetra(letra: string): number {
+  let idx = 0;
+  for (const ch of letra) idx = idx * 26 + (ch.charCodeAt(0) - 64);
+  return idx - 1;
+}
+
+/**
+ * Reconhece as colunas pelo cabeçalho e avisa o que foi escolhido para cada
+ * campo — sempre, para a escolha poder ser conferida antes de salvar. Colunas
+ * achadas por aproximação vêm marcadas.
+ */
+function detectar(tipo: TipoFonte, cols: Record<string, string>): Record<string, string> {
+  const cabecalho: string[] = [];
+  for (const [letra, nome] of Object.entries(cols)) cabecalho[indiceDaLetra(letra)] = nome;
+
+  const achadas = detectarPorTipo(tipo, cabecalho);
+  const campos = Object.entries(achadas);
+  if (campos.length > 0) {
+    const resumo = campos
+      .map(([campo, c]) => {
+        const titulo = c.cabecalho.length > 32 ? `${c.cabecalho.slice(0, 31)}…` : c.cabecalho;
+        return `${ROTULO_CAMPO[campo] ?? campo}: ${c.letra} “${titulo}”${c.exata ? "" : " (confira)"}`;
+      })
+      .join(" · ");
+    const aproximadas = campos.filter(([, c]) => !c.exata).length;
+    toast.message(
+      aproximadas > 0
+        ? `Colunas reconhecidas — ${aproximadas} por aproximação`
+        : "Colunas reconhecidas pelo cabeçalho",
+      { description: resumo, duration: 12000 },
+    );
   }
-  return "";
+  return Object.fromEntries(campos.map(([campo, c]) => [campo, c.letra]));
 }
 
-function detectPreConsulta(cols: Record<string, string>): Partial<PreConsultaFormValues> {
-  return {
-    coluna_data: matchCol(cols, "carimbo", "data/hora"),
-    motivo: matchCol(cols, "motivo"),
-    origem: matchCol(cols, "origem", "captação", "captacao", "canal", "como nos conheceu", "como você nos"),
-  };
-}
-
-function detectNps(cols: Record<string, string>): Partial<NpsFormValues> {
-  return {
-    coluna_data:         matchCol(cols, "carimbo", "data/hora"),
-    nota_geral:          matchCol(cols, "nota geral", "avaliação geral", "avaliacao geral", "geral"),
-    nota_profissional:   matchCol(cols, "profissional", "médico", "medico", "dentista"),
-    nota_recepcao:       matchCol(cols, "recepção", "recepcao"),
-    nota_infraestrutura: matchCol(cols, "infraestrutura", "estrutura"),
-    nota_enfermagem:     matchCol(cols, "enfermagem"),
-    comentario:          matchCol(cols, "comentário", "comentario", "sugestão", "sugestao", "observação"),
-    nome_paciente:       matchCol(cols, "nome do paciente", "nome completo", "paciente"),
-    anonimato:           matchCol(cols, "anonimato", "anônimo", "privacidade", "preferência de privacidade"),
-    indicacao:           matchCol(cols, "indicação", "indicacao", "indicou", "indica", "referência", "referencia"),
-  };
-}
-
-function detectLeads(cols: Record<string, string>): Partial<LeadsFormValues> {
-  return {
-    coluna_data: matchCol(cols, "carimbo", "data/hora", "data"),
-    convertido:  matchCol(cols, "convertido", "agendou", "status", "situação"),
-  };
-}
-
-function detectFaturamento(cols: Record<string, string>): Partial<FaturamentoFormValues> {
-  return {
-    coluna_data:  matchCol(cols, "data", "carimbo", "data/hora"),
-    categoria:    matchCol(cols, "categoria", "tipo", "serviço", "procedimento"),
-    valor_pago:   matchCol(cols, "valor", "pagamento", "receita", "faturado"),
-    profissional: matchCol(cols, "profissional", "médico", "medico", "dentista", "operador"),
-  };
-}
-
-function detectDespesa(cols: Record<string, string>): Partial<DespesaFormValues> {
-  return {
-    coluna_data: matchCol(cols, "data", "carimbo", "data/hora"),
-    categoria:   matchCol(cols, "categoria", "tipo", "centro de custo"),
-    valor_pago:  matchCol(cols, "valor", "despesa", "custo", "pagamento"),
-  };
-}
+const detectPreConsulta = (cols: Record<string, string>) =>
+  detectar("pre_consulta", cols) as Partial<PreConsultaFormValues>;
+const detectNps = (cols: Record<string, string>) =>
+  detectar("nps", cols) as Partial<NpsFormValues>;
+const detectLeads = (cols: Record<string, string>) =>
+  detectar("leads", cols) as Partial<LeadsFormValues>;
+const detectFaturamento = (cols: Record<string, string>) =>
+  detectar("faturamento", cols) as Partial<FaturamentoFormValues>;
+const detectDespesa = (cols: Record<string, string>) =>
+  detectar("despesa", cols) as Partial<DespesaFormValues>;
 
 // ── Helpers para abas mensais ─────────────────────────────────────────────────
 
@@ -354,14 +355,15 @@ async function testSheetConnection(
   sheetId: string,
   abaNome: string,
   setImportText: (v: string) => void,
-  setShowImporter: (v: boolean) => void
+  setShowImporter: (v: boolean) => void,
+  linhaCabecalho = 1,
 ) {
   if (!sheetId || !abaNome) { toast.error("Preencha Sheet ID e Aba antes de testar."); return; }
   try {
     const res  = await fetch("/api/sheets/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sheet_id: sheetId, aba_nome: abaNome }),
+      body: JSON.stringify({ sheet_id: sheetId, aba_nome: abaNome, linha_cabecalho: linhaCabecalho }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -565,7 +567,10 @@ function LeadsForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Props
 
   async function testConnection() {
     setIsTesting(true);
-    await testSheetConnection(form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter);
+    await testSheetConnection(
+      form.getValues("sheet_id"), form.getValues("aba_nome"), setImportText, setShowImporter,
+      Math.max(1, Number(form.getValues("linha_inicial") || 2) - 1),
+    );
     setIsTesting(false);
   }
 
@@ -680,7 +685,10 @@ function FaturamentoForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit
       setIsTesting(false);
       return;
     }
-    await testSheetConnection(form.getValues("sheet_id"), primeiraAba, setImportText, setShowImporter);
+    await testSheetConnection(
+      form.getValues("sheet_id"), primeiraAba, setImportText, setShowImporter,
+      Math.max(1, Number(form.getValues("linha_inicial") || 2) - 1),
+    );
     setIsTesting(false);
   }
 
@@ -798,7 +806,10 @@ function DespesaForm({ clinicaId, existingFonte, onSuccess, onCancel }: Omit<Pro
       setIsTesting(false);
       return;
     }
-    await testSheetConnection(form.getValues("sheet_id"), primeiraAba, setImportText, setShowImporter);
+    await testSheetConnection(
+      form.getValues("sheet_id"), primeiraAba, setImportText, setShowImporter,
+      Math.max(1, Number(form.getValues("linha_inicial") || 2) - 1),
+    );
     setIsTesting(false);
   }
 

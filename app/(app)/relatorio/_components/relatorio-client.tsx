@@ -439,9 +439,10 @@ function LeadsManualPanel({
 }
 
 // ─── Formulário de dados do infográfico ───────────────────────────────────────
-function FormImagem({ dados, onChange }: {
+function FormImagem({ dados, onChange, clinicaId }: {
   dados: RelatorioImagemData;
   onChange: (d: RelatorioImagemData) => void;
+  clinicaId: string;
 }) {
   const { visaoGeral, destaques, alertas, acoes } = dados;
   const fat = visaoGeral.faturamento, ng = visaoGeral.npsGoogle, com = visaoGeral.comercial;
@@ -453,7 +454,7 @@ function FormImagem({ dados, onChange }: {
     setLoadingIA(true);
     setErroIA(null);
     try {
-      const res = await gerarSugestoesIA(dados);
+      const res = await gerarSugestoesIA(dados, clinicaId);
       if (!res.ok) {
         setErroIA(res.erro);
         return;
@@ -973,7 +974,11 @@ function ClinicaImagemCard({
       <CardContent>
         {dados ? (
           <div className="space-y-4">
-            <FormImagem dados={dados} onChange={d => onUpdate({ ...resultado, imagemDados: d })} />
+            <FormImagem
+              dados={dados}
+              clinicaId={resultado.clinicaId}
+              onChange={d => onUpdate({ ...resultado, imagemDados: d })}
+            />
             <Separator />
             {gerarComentarios && (
               <div className="space-y-3">

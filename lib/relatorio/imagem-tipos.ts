@@ -80,4 +80,6 @@ export interface RelatorioImagemData {
   faturamento_suplementar?: FaturamentoSuplementar;
   /** Página 2 (opcional): só é preenchida quando o usuário pede os feedbacks. */
   comentarios?: ComentarioItem[];
+  /** Como a clínica chama quem ela atende (perfil do cliente). Ausente = "pacientes". */
+  termos?: { cliente: string; clientes: string };
 }

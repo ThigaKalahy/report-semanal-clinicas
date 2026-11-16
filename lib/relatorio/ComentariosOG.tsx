@@ -273,7 +273,7 @@ export function ComentariosOG({
       {/* ── Elogios ── */}
       {elogios.length > 0 && (
         <div style={col()}>
-          <SecaoTitulo label="O que os pacientes disseram" />
+          <SecaoTitulo label={`O que os ${txt(dados?.termos?.clientes) || "pacientes"} disseram`} />
           <div style={col({ gap: 12 })}>
             {elogios.map((c, i) => (
               <ComentarioCard key={i} item={c} />

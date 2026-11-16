@@ -183,6 +183,61 @@ export interface Database {
         };
         Relationships: [];
       };
+      perfis_cliente: {
+        Row: {
+          clinica_id: string;
+          cidade: string;
+          uf: string;
+          segmento_tipo: "clinica" | "odontologia" | "estetica" | "varejo" | "servicos" | "outro" | null;
+          segmento: string;
+          especialidades: string;
+          vocabulario: Json;
+          porte: "ate50" | "50a150" | "150a400" | "400a1000" | "acima1000" | null;
+          modelo: "particular" | "convenio" | "misto" | null;
+          perfil: string;
+          prioridades: string;
+          pessoas: string;
+          estilo: string;
+          evitar: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          clinica_id: string;
+          cidade?: string;
+          uf?: string;
+          segmento_tipo?: "clinica" | "odontologia" | "estetica" | "varejo" | "servicos" | "outro" | null;
+          segmento?: string;
+          especialidades?: string;
+          vocabulario?: Json;
+          porte?: "ate50" | "50a150" | "150a400" | "400a1000" | "acima1000" | null;
+          modelo?: "particular" | "convenio" | "misto" | null;
+          perfil?: string;
+          prioridades?: string;
+          pessoas?: string;
+          estilo?: string;
+          evitar?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          cidade?: string;
+          uf?: string;
+          segmento_tipo?: "clinica" | "odontologia" | "estetica" | "varejo" | "servicos" | "outro" | null;
+          segmento?: string;
+          especialidades?: string;
+          vocabulario?: Json;
+          porte?: "ate50" | "50a150" | "150a400" | "400a1000" | "acima1000" | null;
+          modelo?: "particular" | "convenio" | "misto" | null;
+          perfil?: string;
+          prioridades?: string;
+          pessoas?: string;
+          estilo?: string;
+          evitar?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       relatorios_gerados: {
         Row: {
           id: string;
@@ -246,6 +301,9 @@ export type CheckpointIndicadorInsert =
 
 export type RelatorioGerado = Database["public"]["Tables"]["relatorios_gerados"]["Row"];
 export type RelatorioGeradoInsert = Database["public"]["Tables"]["relatorios_gerados"]["Insert"];
+
+export type PerfilCliente = Database["public"]["Tables"]["perfis_cliente"]["Row"];
+export type PerfilClienteInsert = Database["public"]["Tables"]["perfis_cliente"]["Insert"];
 
 export type TipoFonte = FonteDados["tipo"];
 export type NomeIndicador = CheckpointIndicador["indicador"];

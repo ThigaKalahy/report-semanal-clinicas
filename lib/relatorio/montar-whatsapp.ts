@@ -5,6 +5,11 @@ import type { ResultadoNPS, Indicacao } from "@/lib/coletores/nps";
 import type { ResultadoGoogle, AvaliacaoGoogle } from "@/lib/coletores/google-places";
 import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
+import { NEUTRO, SEGMENTOS } from "@/lib/perfil/vocabulario";
+import type { Vocabulario } from "@/lib/perfil/vocabulario";
+
+// Sem ficha de perfil, os textos continuam como sempre foram: falando de pacientes.
+const VOCAB_PADRAO: Vocabulario = SEGMENTOS.find((s) => s.id === "clinica")?.vocab ?? NEUTRO;
 
 // Limite de relevância deste relatório: comentários mais curtos que isto não
 // entram no WhatsApp. O coletor devolve todos os comentários não vazios — o
@@ -31,7 +36,8 @@ function blocoPreConsulta(
   clinicaNome: string,
   pre: ResultadoPreConsulta | null,
   ini: Date,
-  fim: Date
+  fim: Date,
+  vocab: Vocabulario,
 ): string {
   const lines: string[] = [];
   lines.push(`*${clinicaNome}*`);
@@ -67,7 +73,7 @@ function blocoPreConsulta(
   }
   if (pre.origens.length > 0) {
     const top = pre.origens[0];
-    analysis.push(`A maioria dos pacientes chegou por ${top.nome.toLowerCase()} (${top.pct}%).`);
+    analysis.push(`A maioria dos ${vocab.clientes} chegou por ${top.nome.toLowerCase()} (${top.pct}%).`);
   }
   if (analysis.length > 0) {
     lines.push("");
@@ -216,10 +222,12 @@ export function montarPesquisas(
   googleManualAvaliacoes?: AvaliacaoGoogle[],
   leads?: ResultadoLeads | null,
   metaLeads?: ResultadoMeta | null,
+  vocabulario?: Vocabulario | null,
 ): string {
   const blocos: string[] = [];
+  const vocab = vocabulario ?? VOCAB_PADRAO;
 
-  blocos.push(blocoPreConsulta(clinicaNome, pre, ini, fim));
+  blocos.push(blocoPreConsulta(clinicaNome, pre, ini, fim, vocab));
   if (nps) blocos.push(blocoNPS(nps));
   blocos.push(blocoGoogle(google, googleManual, googleManualAvaliacoes));
   if (leads) blocos.push(blocoLeads(leads, metaLeads ?? null));

@@ -19,6 +19,8 @@ import type { SugestaoIA } from "@/lib/ia/gemini";
 import { montarContextoIA, SYSTEM_PROMPT } from "@/lib/ia/montar-contexto";
 import type { RelatorioGeradoInsert } from "@/lib/supabase/types";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
+import { carregarFicha } from "@/lib/perfil/carregar";
+import { vocabularioDe } from "@/lib/perfil/vocabulario";
 
 interface GerarParams {
   clinicaId: string;
@@ -125,6 +127,7 @@ export async function gerarRelatorioWhatsapp(
     }
 
     const metaLeads = metas.find((m) => m.tipo_nome.toLowerCase().includes("lead")) ?? null;
+    const ficha     = await carregarFicha(clinicaId);
 
     texto = montarPesquisas(
       clinica.nome,
@@ -137,6 +140,8 @@ export async function gerarRelatorioWhatsapp(
       googleManualAvaliacoes,
       leads,
       metaLeads,
+      // Sem ficha, montarPesquisas mantém o vocabulário de sempre ("pacientes")
+      ficha ? vocabularioDe(ficha) : null,
     );
 
   } else if (formato === "whatsapp_metas") {
@@ -278,6 +283,8 @@ export async function prepararDadosImagem(params: {
     });
   }
 
+  const fichaImagem = await carregarFicha(clinicaId);
+
   const dados = montarDadosImagem(
     clinica,
     pre,
@@ -293,6 +300,7 @@ export async function prepararDadosImagem(params: {
     fatFiltro?.por_profissional  ?? null,
     incluirComentarios === true,
     googleManualAvaliacoes ?? null,
+    fichaImagem ? vocabularioDe(fichaImagem) : null,
   );
 
   if (incluirComentarios && (dados.comentarios?.length ?? 0) === 0) {
@@ -346,6 +354,7 @@ export type ResultadoSugestaoIA =
 
 export async function gerarSugestoesIA(
   dados: RelatorioImagemData,
+  clinicaId?: string,
 ): Promise<ResultadoSugestaoIA> {
   const h = await headers();
   if (!checkRateLimit(rateLimitKey(h), 10)) {
@@ -353,7 +362,8 @@ export async function gerarSugestoesIA(
   }
 
   try {
-    const contexto  = montarContextoIA(dados);
+    const ficha     = clinicaId ? await carregarFicha(clinicaId) : null;
+    const contexto  = montarContextoIA(dados, ficha);
     const sugestoes = await callGemini(SYSTEM_PROMPT, contexto);
     return { ok: true, sugestoes };
   } catch (e) {
