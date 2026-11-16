@@ -183,6 +183,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      estruturas_relatorio: {
+        Row: {
+          clinica_id: string;
+          config: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          clinica_id: string;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          clinica_id?: string;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       perfis_cliente: {
         Row: {
           clinica_id: string;
@@ -301,6 +322,8 @@ export type CheckpointIndicadorInsert =
 
 export type RelatorioGerado = Database["public"]["Tables"]["relatorios_gerados"]["Row"];
 export type RelatorioGeradoInsert = Database["public"]["Tables"]["relatorios_gerados"]["Insert"];
+
+export type EstruturaRelatorio = Database["public"]["Tables"]["estruturas_relatorio"]["Row"];
 
 export type PerfilCliente = Database["public"]["Tables"]["perfis_cliente"]["Row"];
 export type PerfilClienteInsert = Database["public"]["Tables"]["perfis_cliente"]["Insert"];

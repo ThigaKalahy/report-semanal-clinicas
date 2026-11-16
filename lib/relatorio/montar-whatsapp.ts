@@ -7,6 +7,8 @@ import type { ResultadoLeads } from "@/lib/coletores/leads";
 import type { ResultadoMeta } from "@/lib/coletores/metas";
 import { NEUTRO, SEGMENTOS } from "@/lib/perfil/vocabulario";
 import type { Vocabulario } from "@/lib/perfil/vocabulario";
+import { listaPadrao, indicadoresLigados } from "@/lib/estrutura/estrutura";
+import type { ItemEstrutura } from "@/lib/estrutura/estrutura";
 
 // Sem ficha de perfil, os textos continuam como sempre foram: falando de pacientes.
 const VOCAB_PADRAO: Vocabulario = SEGMENTOS.find((s) => s.id === "clinica")?.vocab ?? NEUTRO;
@@ -32,48 +34,55 @@ function fmtMedia(v: number): string {
 
 // ── Block builders ────────────────────────────────────────────────────────────
 
+/** Abre o report. Vai colado na primeira seção, na mesma mensagem. */
+function cabecalho(clinicaNome: string, ini: Date, fim: Date): string {
+  return [
+    `*${clinicaNome}*`,
+    "",
+    `*Report semanal: (avaliações, questionários e metas):*`,
+    `\`Período analisado: ${fmtDate(ini)} até ${fmtDate(fim)}\``,
+  ].join("\n");
+}
+
 function blocoPreConsulta(
-  clinicaNome: string,
   pre: ResultadoPreConsulta | null,
-  ini: Date,
-  fim: Date,
   vocab: Vocabulario,
+  on: Set<string>,
 ): string {
   const lines: string[] = [];
-  lines.push(`*${clinicaNome}*`);
-  lines.push("");
-  lines.push(`*Report semanal: (avaliações, questionários e metas):*`);
-  lines.push(`\`Período analisado: ${fmtDate(ini)} até ${fmtDate(fim)}\``);
+  lines.push(`*📄 Questionário Pré-Consulta:*`);
 
   if (!pre) {
-    lines.push("");
-    lines.push(`*📄 Questionário Pré-Consulta:*`);
     lines.push(`Dados não disponíveis.`);
     return lines.join("\n");
   }
 
-  lines.push("");
-  lines.push(`*📄 Questionário Pré-Consulta:*`);
   lines.push(`\`${pre.total} respostas essa semana\``);
 
-  if (pre.motivos.length > 0) {
-    lines.push("");
-    const motivoStr = pre.motivos.slice(0, 3).map((m) => `${m.nome} (${m.pct}%)`).join(", ");
+  const motivos = on.has("sem.pre.motivos") ? pre.motivos : [];
+  const origens = on.has("sem.pre.origens") ? pre.origens : [];
+
+  if (motivos.length > 0 || origens.length > 0) lines.push("");
+  if (motivos.length > 0) {
+    const motivoStr = motivos.slice(0, 3).map((m) => `${m.nome} (${m.pct}%)`).join(", ");
     lines.push(`_➤ Motivo principal>_ ${motivoStr}`);
   }
-  if (pre.origens.length > 0) {
-    const origemStr = pre.origens.slice(0, 3).map((o) => `${o.nome} (${o.pct}%)`).join(", ");
+  if (origens.length > 0) {
+    const origemStr = origens.slice(0, 3).map((o) => `${o.nome} (${o.pct}%)`).join(", ");
     lines.push(`_➤ De onde veio>_ ${origemStr}`);
   }
 
+  // A frase de análise só fala do que está visível acima
   const analysis: string[] = [];
-  if (pre.motivos.length > 0) {
-    const top = pre.motivos[0];
-    analysis.push(`${top.nome} foi o motivo mais frequente com ${top.pct}% das respostas.`);
-  }
-  if (pre.origens.length > 0) {
-    const top = pre.origens[0];
-    analysis.push(`A maioria dos ${vocab.clientes} chegou por ${top.nome.toLowerCase()} (${top.pct}%).`);
+  if (on.has("sem.pre.analise")) {
+    if (motivos.length > 0) {
+      const top = motivos[0];
+      analysis.push(`${top.nome} foi o motivo mais frequente com ${top.pct}% das respostas.`);
+    }
+    if (origens.length > 0) {
+      const top = origens[0];
+      analysis.push(`A maioria dos ${vocab.clientes} chegou por ${top.nome.toLowerCase()} (${top.pct}%).`);
+    }
   }
   if (analysis.length > 0) {
     lines.push("");
@@ -83,12 +92,12 @@ function blocoPreConsulta(
   return lines.join("\n");
 }
 
-function blocoNPS(nps: ResultadoNPS): string {
+function blocoNPS(nps: ResultadoNPS, on: Set<string>): string {
   const lines: string[] = [];
   lines.push(`*🔍 Pesquisa NPS:*`);
   lines.push(`➤ ${nps.total} respostas recebidas`);
 
-  if (nps.notas_gerais.length > 0) {
+  if (on.has("sem.nps.notas") && nps.notas_gerais.length > 0) {
     lines.push("");
     lines.push(`➤ NPS Geral:`);
     for (const { nota, count } of nps.notas_gerais) {
@@ -101,7 +110,7 @@ function blocoNPS(nps: ResultadoNPS): string {
   if (promotores > 0) partes.push(`🟢 ${promotores} Promotores`);
   if (neutros > 0)    partes.push(`🟡 ${neutros} Neutros`);
   if (detratores > 0) partes.push(`🔴 ${detratores} Detratores`);
-  if (partes.length > 0) {
+  if (on.has("sem.nps.classificacao") && partes.length > 0) {
     lines.push("");
     lines.push(`➤ Classificação:`);
     lines.push(partes.join(" / "));
@@ -115,7 +124,7 @@ function blocoNPS(nps: ResultadoNPS): string {
     { emoji: "💉",   nome: "Enfermagem",              media: nps.medias_por_area.enfermagem },
   ].filter((a) => a.media !== null);
 
-  if (areas.length > 0) {
+  if (on.has("sem.nps.areas") && areas.length > 0) {
     lines.push("");
     lines.push(`📋 Avaliações por área:`);
     lines.push("");
@@ -125,7 +134,7 @@ function blocoNPS(nps: ResultadoNPS): string {
     }
   }
 
-  if (nps.indicacoes && nps.indicacoes.length > 0) {
+  if (on.has("sem.nps.indicacoes") && nps.indicacoes && nps.indicacoes.length > 0) {
     lines.push("");
     lines.push(`☎️ *Indicações*`);
     for (const ind of nps.indicacoes as Indicacao[]) {
@@ -142,7 +151,7 @@ function blocoNPS(nps: ResultadoNPS): string {
   const comentariosRelevantes = nps.comentarios.filter(
     (c) => c.comentario.length >= MIN_CARACTERES_COMENTARIO
   );
-  if (comentariosRelevantes.length > 0) {
+  if (on.has("sem.nps.comentarios") && comentariosRelevantes.length > 0) {
     lines.push("");
     lines.push(`💬 Comentários relevantes:`);
     for (const { nome, comentario } of comentariosRelevantes) {
@@ -153,7 +162,7 @@ function blocoNPS(nps: ResultadoNPS): string {
   return lines.join("\n").trimEnd();
 }
 
-function blocoLeads(leads: ResultadoLeads, metaLeads: ResultadoMeta | null): string {
+function blocoLeads(leads: ResultadoLeads, metaLeads: ResultadoMeta | null, on: Set<string>): string {
   const lines: string[] = [];
   lines.push(`*📈 Leads*`);
   lines.push(`➤ Total de leads: ${leads.total}`);
@@ -163,7 +172,7 @@ function blocoLeads(leads: ResultadoLeads, metaLeads: ResultadoMeta | null): str
     : "—";
   lines.push(`➤ Taxa de conversão: ${taxa}`);
 
-  if (metaLeads) {
+  if (metaLeads && on.has("sem.leads.meta")) {
     lines.push(
       `➤ Meta de leads: ${formatValor(leads.total, metaLeads.tipo_formato)}/${formatValor(metaLeads.meta_periodo, metaLeads.tipo_formato)} \`${metaLeads.performance.texto_curto}\``
     );
@@ -223,14 +232,38 @@ export function montarPesquisas(
   leads?: ResultadoLeads | null,
   metaLeads?: ResultadoMeta | null,
   vocabulario?: Vocabulario | null,
+  /**
+   * Seções do semanal desta clínica, na ordem em que devem sair (já
+   * normalizadas). Sem isto vale a estrutura padrão — o report de sempre.
+   */
+  estrutura?: ItemEstrutura[] | null,
 ): string {
   const blocos: string[] = [];
   const vocab = vocabulario ?? VOCAB_PADRAO;
 
-  blocos.push(blocoPreConsulta(clinicaNome, pre, ini, fim, vocab));
-  if (nps) blocos.push(blocoNPS(nps));
-  blocos.push(blocoGoogle(google, googleManual, googleManualAvaliacoes));
-  if (leads) blocos.push(blocoLeads(leads, metaLeads ?? null));
+  for (const item of estrutura ?? listaPadrao("semanal")) {
+    if (!item.ativa) continue;
+    const on = indicadoresLigados(item, "semanal");
+    switch (item.id) {
+      case "semPreConsulta":
+        blocos.push(blocoPreConsulta(pre, vocab, on));
+        break;
+      case "semNps":
+        if (nps) blocos.push(blocoNPS(nps, on));
+        break;
+      case "semGoogle":
+        blocos.push(blocoGoogle(google, googleManual, googleManualAvaliacoes));
+        break;
+      case "semLeads":
+        if (leads) blocos.push(blocoLeads(leads, metaLeads ?? null, on));
+        break;
+    }
+  }
+
+  // O cabeçalho abre a primeira mensagem, seja qual for a seção que vem primeiro
+  const topo = cabecalho(clinicaNome, ini, fim);
+  if (blocos.length === 0) return topo;
+  blocos[0] = `${topo}\n\n${blocos[0]}`;
 
   return blocos.join(`\n\n${SEPARATOR}\n\n`);
 }

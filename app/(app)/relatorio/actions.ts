@@ -21,6 +21,7 @@ import type { RelatorioGeradoInsert } from "@/lib/supabase/types";
 import type { RelatorioImagemData } from "@/lib/relatorio/imagem-tipos";
 import { carregarFicha } from "@/lib/perfil/carregar";
 import { vocabularioDe } from "@/lib/perfil/vocabulario";
+import { carregarEstrutura } from "@/lib/estrutura/carregar";
 
 interface GerarParams {
   clinicaId: string;
@@ -127,7 +128,10 @@ export async function gerarRelatorioWhatsapp(
     }
 
     const metaLeads = metas.find((m) => m.tipo_nome.toLowerCase().includes("lead")) ?? null;
-    const ficha     = await carregarFicha(clinicaId);
+    const [ficha, { estrutura }] = await Promise.all([
+      carregarFicha(clinicaId),
+      carregarEstrutura(clinicaId),
+    ]);
 
     texto = montarPesquisas(
       clinica.nome,
@@ -142,6 +146,8 @@ export async function gerarRelatorioWhatsapp(
       metaLeads,
       // Sem ficha, montarPesquisas mantém o vocabulário de sempre ("pacientes")
       ficha ? vocabularioDe(ficha) : null,
+      // Seções, ordem e indicadores do semanal desta clínica
+      estrutura.semanal,
     );
 
   } else if (formato === "whatsapp_metas") {
@@ -283,23 +289,30 @@ export async function prepararDadosImagem(params: {
     });
   }
 
-  const fichaImagem = await carregarFicha(clinicaId);
+  const [fichaImagem, { estrutura }] = await Promise.all([
+    carregarFicha(clinicaId),
+    carregarEstrutura(clinicaId),
+  ]);
+
+  // Seção desligada na estrutura do semanal não entra no infográfico: o dado é
+  // tratado como ausente, do mesmo jeito que uma fonte não cadastrada.
+  const ligada = (id: string) => estrutura.semanal.some((s) => s.id === id && s.ativa);
 
   const dados = montarDadosImagem(
     clinica,
-    pre,
-    nps,
-    google,
+    ligada("semPreConsulta") ? pre : null,
+    ligada("semNps") ? nps : null,
+    ligada("semGoogle") ? google : null,
     metas,
     dataInicio,
     dataFim,
-    leads,
+    ligada("semLeads") ? leads : null,
     fatFiltro?.total_faturado    ?? null,   // realizado_filtro: período selecionado
     fatAcum?.total_faturado      ?? null,   // realizadoAcumulado: dia 01 → data_fim
     fatFiltro?.por_categoria     ?? null,
     fatFiltro?.por_profissional  ?? null,
     incluirComentarios === true,
-    googleManualAvaliacoes ?? null,
+    ligada("semGoogle") ? googleManualAvaliacoes ?? null : null,
     fichaImagem ? vocabularioDe(fichaImagem) : null,
   );
 

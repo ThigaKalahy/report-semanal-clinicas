@@ -1,0 +1,92 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`report semanal — referência (estrutura padrão) > Google digitado à mão 1`] = `
+"*Clínica Teste*
+
+*Report semanal: (avaliações, questionários e metas):*
+\`Período analisado: 09/11 até 15/11\`
+
+*📄 Questionário Pré-Consulta:*
+\`12 respostas essa semana\`
+
+_➤ Motivo principal>_ Emagrecimento (50%), Check-up (33%), Reposição hormonal (17%)
+_➤ De onde veio>_ Instagram (58%), Indicação (42%)
+
+Emagrecimento foi o motivo mais frequente com 50% das respostas. A maioria dos pacientes chegou por instagram (58%).
+
+—- ENVIAR SEPARADO
+
+*⭐ Avaliação Google:*
+➤ 3 avaliações novas, todas 5 estrelas"
+`;
+
+exports[`report semanal — referência (estrutura padrão) > relatório completo sai como sempre saiu 1`] = `
+"*Clínica Teste*
+
+*Report semanal: (avaliações, questionários e metas):*
+\`Período analisado: 09/11 até 15/11\`
+
+*📄 Questionário Pré-Consulta:*
+\`12 respostas essa semana\`
+
+_➤ Motivo principal>_ Emagrecimento (50%), Check-up (33%), Reposição hormonal (17%)
+_➤ De onde veio>_ Instagram (58%), Indicação (42%)
+
+Emagrecimento foi o motivo mais frequente com 50% das respostas. A maioria dos pacientes chegou por instagram (58%).
+
+—- ENVIAR SEPARADO
+
+*🔍 Pesquisa NPS:*
+➤ 8 respostas recebidas
+
+➤ NPS Geral:
+– 6x nota 10
+– 1x nota 8
+– 1x nota 5
+
+➤ Classificação:
+🟢 6 Promotores / 🟡 1 Neutros / 🔴 1 Detratores
+NPS da semana: 63
+
+📋 Avaliações por área:
+
+🧑‍⚕️ Profissional de saúde:
+🟢 Todas notas 5
+🧑‍💼 Recepção:
+🟢 Média: 4,6
+
+☎️ *Indicações*
+Ana (11) 99999-0000, indicado por Maria
+
+💬 Comentários relevantes:
+MARIA: "Atendimento excelente, equipe muito atenciosa do começo ao fim."
+
+—- ENVIAR SEPARADO
+
+*⭐ Avaliação Google:*
+➤ 1 novas avaliações neste período
+⭐⭐⭐⭐⭐ *Carla*: "Recomendo demais."
+
+—- ENVIAR SEPARADO
+
+*📈 Leads*
+➤ Total de leads: 40
+➤ Convertidos: 10
+➤ Taxa de conversão: 25.0%
+➤ Meta de leads: undefined/undefined \`80% da meta\`"
+`;
+
+exports[`report semanal — referência (estrutura padrão) > sem pré-consulta, sem NPS e sem Google 1`] = `
+"*Clínica Teste*
+
+*Report semanal: (avaliações, questionários e metas):*
+\`Período analisado: 09/11 até 15/11\`
+
+*📄 Questionário Pré-Consulta:*
+Dados não disponíveis.
+
+—- ENVIAR SEPARADO
+
+*⭐ Avaliação Google:*
+➤ Não foi possível obter avaliações Google automaticamente."
+`;
