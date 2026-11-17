@@ -146,6 +146,48 @@ function porCategoria(itens) {
   return r;
 }
 
+function quantidades(itens) {
+  const r = {};
+  for (const i of itens) if (n(i.quantidade) !== 0) r[chaveNome(i.nome)] = n(i.quantidade);
+  return r;
+}
+
+function nomes(itens) {
+  const r = {};
+  for (const i of itens) if (i?.nome) r[chaveNome(i.nome)] = String(i.nome);
+  return r;
+}
+
+/** O período anterior que o Sync guardou: base das variações. */
+function converterAnterior(fe, ant) {
+  const antPeriodo = ant?.periodo?.inicio ? periodoDe(fe.tipo, ant.periodo.inicio) : null;
+  if (!ant || !antPeriodo) return null;
+  const receitas = lista(ant.faturamento?.porGrupo);
+  const despesas = lista(ant.despesas?.porGrupo).flatMap((g) => lista(g.categorias));
+  const p = ant.pacientes;
+  const l = ant.leads;
+  const o = ant.orcamentos;
+  return {
+    rotulo: rotuloCurto(fe.tipo, antPeriodo.ano, antPeriodo.mes, antPeriodo.quinzena),
+    faturamento: nOuNulo(ant.faturamento?.total),
+    despesas: nOuNulo(ant.despesas?.total),
+    receitasPorCategoria: porCategoria(receitas),
+    despesasPorCategoria: porCategoria(despesas),
+    quantidadePorCategoria: quantidades(receitas),
+    nomesCategorias: { ...nomes(receitas), ...nomes(despesas) },
+    pacientes: p
+      ? { atendidos: nOuNulo(p.atendidos), ticketMedio: nOuNulo(p.ticketMedio), novos: nOuNulo(p.novos), ticketNovos: nOuNulo(p.ticketNovos) }
+      : null,
+    leads: l && n(l.total) > 0 ? { total: n(l.total), agendados: n(l.agendados), conversao: nOuNulo(l.conversao) } : null,
+    orcamentos: o && n(o.total) > 0
+      ? {
+          total: n(o.total), fechados: n(o.fechados), valorGerado: n(o.valorGerado), valorFechado: n(o.valorFechado),
+          conversaoValor: nOuNulo(o.conversaoValor), conversaoQuantidade: nOuNulo(o.conversaoQuantidade),
+        }
+      : null,
+  };
+}
+
 const ROTULO_FONTE = { vendas: "Vendas", despesas: "Despesas", entradas: "Entradas", orcamentos: "Orçamentos", leads: "Leads", nps: "NPS", google: "Avaliações Google" };
 const GRAVIDADES = ["erro", "atencao", "info"];
 
@@ -157,7 +199,6 @@ function converterDados(pagina) {
   const ant = base.anterior ?? null;
   const rit = base.ritmo ?? null;
   const { ano, mes, quinzena } = periodoDe(fe.tipo, fe.inicio);
-  const antPeriodo = ant?.periodo?.inicio ? periodoDe(fe.tipo, ant.periodo.inicio) : null;
 
   const meta = nOuNulo(ind.meta?.valor) ?? nOuNulo(fe.meta_ajustada) ?? nOuNulo(base.metaMensal);
 
@@ -197,15 +238,7 @@ function converterDados(pagina) {
       ? { total: n(ind.google.total ?? ind.google.quantidade), media: nOuNulo(ind.google.media ?? ind.google.nota) }
       : null,
     meta,
-    anterior: ant && antPeriodo
-      ? {
-          rotulo: rotuloCurto(fe.tipo, antPeriodo.ano, antPeriodo.mes, antPeriodo.quinzena),
-          faturamento: nOuNulo(ant.faturamento?.total),
-          despesas: nOuNulo(ant.despesas?.total),
-          receitasPorCategoria: porCategoria(lista(ant.faturamento?.porGrupo)),
-          despesasPorCategoria: porCategoria(lista(ant.despesas?.porGrupo).flatMap((g) => lista(g.categorias))),
-        }
-      : null,
+    anterior: converterAnterior(fe, ant),
     ritmo: fe.tipo === "quinzenal" && rit
       ? {
           faturamentoMes: n(rit.faturamento), diasUteisDecorridos: n(rit.diasUteisDecorridos), diasUteisMes: n(rit.diasUteisMes),
@@ -276,6 +309,27 @@ const chaveF = (f) => `${f.clinica_id}:${f.tipo}:${f.ano}:${f.mes}:${f.quinzena 
 const jaTem = new Set(existentes.map(chaveF));
 
 console.log(GRAVAR ? "MODO GRAVAÇÃO\n" : "SIMULAÇÃO (use --gravar para gravar)\n");
+
+// --completar-anterior: nos fechamentos já importados, refaz só a base de comparação
+// (dados.anterior), que é tirada do Sync. Análise, plano, texto e estado não mudam.
+if (process.argv.includes("--completar-anterior")) {
+  const importados = await api("fechamentos?select=id,dados&dados->origem->>sistema=eq.sync");
+  const porOrigem = new Map(paginas.map((p) => [p.fechamento.id, p]));
+  let n = 0;
+  for (const f of importados) {
+    const pagina = porOrigem.get(f.dados?.origem?.id);
+    if (!pagina) continue;
+    const base = pagina.fechamento.snapshot ?? pagina;
+    const anterior = converterAnterior(pagina.fechamento, base.anterior ?? null);
+    if (!anterior) continue;
+    if (GRAVAR) {
+      await api(`fechamentos?id=eq.${f.id}`, { method: "PATCH", body: JSON.stringify({ dados: { ...f.dados, anterior } }) });
+    }
+    n++;
+  }
+  console.log(`${n} fechamento(s) importado(s) ${GRAVAR ? "com a comparação completada" : "a completar"}.`);
+  process.exit(0);
+}
 
 paginas.sort((a, b) => a.clinicaNome.localeCompare(b.clinicaNome, "pt-BR") || a.fechamento.inicio.localeCompare(b.fechamento.inicio));
 let criados = 0;

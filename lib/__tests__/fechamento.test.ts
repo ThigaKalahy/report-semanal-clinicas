@@ -17,6 +17,12 @@ import { calcularOrcamentos } from "../coletores/orcamentos-calculo";
 import { listaPadrao, normalizarEstrutura } from "../estrutura/estrutura";
 import { ETAPAS, proximoStatus, posicaoDoStatus } from "../fechamento/status";
 import { SEGMENTOS } from "../perfil/vocabulario";
+import {
+  brl0, comparar, textoVar, comparacaoDo, cartoesDoResultado, ligadosDa, categoriasDeReceita, linhasDeDespesa,
+  maioresAumentos, visaoCaixa, visaoAno,
+} from "../fechamento/visao";
+import { lerAnalise, escreverAnalise, blocosParaCliente } from "../fechamento/analise";
+import { chaveDoAlerta, alertasPendentes, aplicarMeta } from "../fechamento/dados";
 
 const out = [new Date(2026, 9, 1), new Date(2026, 9, 31)] as const;
 // espaço não separável que o toLocaleString põe depois de "R$"
@@ -391,7 +397,7 @@ describe("seções do relatório", () => {
     expect(s.map((x) => x.id)).toEqual(["resultado", "ritmo", "caixaMes", "funilLeads", "funilOrcamentos", "receitas"]);
     expect(s[0].titulo).toBe("Parcial do mês");
     expect(s[1].linhas.find((l) => l.rotulo === "Meta do mês")).toMatchObject({ valor: "batida", tom: "bom" });
-    expect(limpo(s[2].linhas.find((l) => l.rotulo === "Saldo projetado")!.valor)).toBe("R$ 14.000,00");
+    expect(limpo(s[2].linhas.find((l) => l.rotulo === "Saldo projetado do mês")!.valor)).toBe("R$ 14.000,00");
   });
 
   it("análise só aparece quando ligada e escrita", () => {
@@ -556,5 +562,129 @@ describe("mês de competência", () => {
     expect(lerMes("13/2026")).toBeNull();
     expect(lerMes("xyz/2026")).toBeNull();
     expect(lerMes("")).toBeNull();
+  });
+});
+
+describe("visão dos indicadores e do PDF", () => {
+  const sem = (t: string) => t.replace(/\u00a0/g, " ");
+
+  it("formatos: valor sem centavos, variação com sinal e 'novo'", () => {
+    expect(sem(brl0(28419.4))).toBe("R$ 28.419");
+    expect(sem(brl0(-2621.88))).toBe("-R$ 2.622");
+    expect(textoVar(comparar(110, 100))).toBe("+10,0%");
+    expect(textoVar(comparar(76, 100))).toBe("−24,0%");
+    expect(textoVar(comparar(300, 0))).toBe("novo");
+    expect(comparar(120, 100, false).tom).toBe("ruim");
+    expect(comparar(80, 100, false).tom).toBe("bom");
+    expect(comparar(5, null).valor).toBeNull();
+  });
+
+  it("comparação: mês anterior no mensal; mesmos dias no quinzenal", () => {
+    expect(comparacaoDo(retrato())).toMatchObject({ curto: "setembro", coluna: "set", colunaAtual: "outubro" });
+    const q = { ...retrato("quinzenal"), periodo: { inicio: "2026-11-01", fim: "2026-11-15", rotulo: "" } };
+    expect(comparacaoDo(q)).toMatchObject({ curto: "1–15 de out", coluna: "1–15 out", colunaAtual: "1–15 nov", extenso: "(dia 1 ao 15) de outubro" });
+  });
+
+  it("cartões do resultado seguem a estrutura e trazem a variação", () => {
+    const d = retrato();
+    const ids = cartoesDoResultado(d, ligadosDa(listaPadrao("mensal"), "mensal")).map((c) => c.id);
+    expect(ids.slice(0, 4)).toEqual(["fat", "desp", "res", "meta"]);
+    const fat = cartoesDoResultado(d, ligadosDa(listaPadrao("mensal"), "mensal"))[0];
+    expect(textoVar(fat.variacao!)).toBe("+25,0%");
+    // "Despesas" é fixo no catálogo; a meta pode ser escondida
+    const lista = normalizarEstrutura({ mensal: [{ id: "resultado", ativa: true, ocultos: ["res.despesas", "res.meta"] }] }).mensal;
+    const sem = cartoesDoResultado(d, ligadosDa(lista, "mensal")).map((c) => c.id);
+    expect(sem).toContain("desp");
+    expect(sem).not.toContain("meta");
+  });
+
+  it("receitas: categoria que sumiu aparece zerada, com o nome da planilha", () => {
+    const d = retrato();
+    d.anterior = { ...d.anterior!, nomesCategorias: { exames: "Exames Laboratoriais" }, quantidadePorCategoria: { consulta: 4 } };
+    const l = categoriasDeReceita(d);
+    expect(l.map((x) => x.nome)).toEqual(["Consulta", "Procedimento", "Exames Laboratoriais"]);
+    expect(textoVar(l[0].variacao)).toBe("+20,0%");
+    expect(l[0].ticketAntes).toBe(1250);
+    expect(textoVar(l[1].variacao)).toBe("novo");
+    expect(l[2]).toMatchObject({ valor: 0, antes: 3000 });
+  });
+
+  it("despesas: grupo soma o anterior inteiro, inclusive categoria que sumiu; aumentos de 10% e R$ 300", () => {
+    const d = retrato();
+    d.anterior = { ...d.anterior!, despesasPorCategoria: { aluguel: 5000, luz: 400, agua: 250 }, nomesCategorias: { agua: "Água" } };
+    const l = linhasDeDespesa(d);
+    const infra = l.find((x) => x.grupo && x.nome === "Infraestrutura")!;
+    expect(infra.antes).toBe(5650);
+    expect(l.find((x) => x.nome === "Água")).toMatchObject({ valor: 0, antes: 250, grupo: false });
+    expect(l.find((x) => x.nome === "Luz")!.aumentou).toBe(true); // 400 → 1.000
+    expect(l.find((x) => x.nome === "Aluguel")!.aumentou).toBe(false);
+    const aum = maioresAumentos(d, comparacaoDo(d));
+    expect(aum.map((a) => a.nome)).toEqual(["Luz"]);
+    expect(aum[0].texto).toBe("+150,0% vs setembro");
+  });
+
+  it("caixa do mês: provisionado pela média (como no Sync); sem média, pelos vencimentos", () => {
+    const base = { ...retrato("quinzenal"), periodo: { inicio: "2026-11-01", fim: "2026-11-15", rotulo: "" } };
+    const ritmo = calcularRitmo({ faturamentoMes: 38230, diasUteisDecorridos: 9, diasUteisMes: 19, meta: 68000 });
+    const comMedia = visaoCaixa({ ...base, ritmo, caixaMes: calcularCaixaMes({
+      despesasAteAData: 25925, despesasDoMes: 30000, projecaoFaturamento: ritmo.projecao, despesasMesesAnteriores: [60000, 65000, 70750],
+    }) })!;
+    expect(comMedia.provisionado).toBeCloseTo(65250 - 25925, 2);
+    expect(comMedia.mesesDaMedia).toEqual(["ago", "set", "out"]);
+    expect(comMedia.saldoProjetado).toBeCloseTo(ritmo.projecao! - 65250, 2);
+    expect(comMedia.saldoPeriodo).toBe(base.faturamento!.total - 25925);
+    const semMedia = visaoCaixa({ ...base, ritmo, caixaMes: calcularCaixaMes({ despesasAteAData: 5000, despesasDoMes: 6000, projecaoFaturamento: 20000 }) })!;
+    expect([semMedia.provisionado, semMedia.regraProvisionado]).toEqual([1000, "vencimentos até o fim do mês"]);
+  });
+
+  it("série do ano com variação mês a mês e saldos", () => {
+    const anual = [
+      { mes: "2026-09", faturamento: 8000, recebido: null, despesas: 6000, despesasCompetencia: 5000 },
+      { mes: "2026-10", faturamento: 10000, recebido: null, despesas: 6600, despesasCompetencia: null },
+    ];
+    const v = visaoAno({ ...retrato(), anual })!;
+    expect(v.linhas.map((l) => l.rotulo)).toEqual(["Setembro", "Outubro"]);
+    expect(textoVar(v.linhas[1].varFaturamento)).toBe("+25,0%");
+    expect(v.linhas[1].saldo).toBe(3400);
+    expect(v.temCompetencia).toBe(true);
+  });
+});
+
+describe("conferência: decisões e meta ajustada", () => {
+  it("a chave do alerta ignora os números, e a decisão tira o alerta das pendências", () => {
+    expect(chaveDoAlerta({ area: "Vendas", titulo: "3 linhas de Vendas com data ilegível" }))
+      .toBe(chaveDoAlerta({ area: "Vendas", titulo: "4 linhas de Vendas com data ilegível" }));
+    const d = retrato();
+    const p = alertasPendentes(d);
+    expect(p.every((a) => a.gravidade !== "info")).toBe(true);
+    if (p.length) {
+      const decidido = { ...d, decisoes: [{ chave: chaveDoAlerta(p[0]), acao: "ciente" as const, titulo: p[0].titulo, em: "" }] };
+      expect(alertasPendentes(decidido)).toHaveLength(p.length - 1);
+    }
+  });
+
+  it("meta ajustada refaz o ritmo e guarda a original; null volta à cadastrada", () => {
+    const d = { ...retrato("quinzenal"), meta: 60000, ritmo: calcularRitmo({ faturamentoMes: 30000, diasUteisDecorridos: 10, diasUteisMes: 20, meta: 60000 }) };
+    const a = aplicarMeta(d, 80000);
+    expect([a.meta, a.metaOriginal, a.ritmo!.faltaParaMeta]).toEqual([80000, 60000, 50000]);
+    const b = aplicarMeta(a, null);
+    expect([b.meta, b.metaOriginal, b.ritmo!.faltaParaMeta]).toEqual([60000, undefined, 30000]);
+  });
+});
+
+describe("texto da análise em blocos", () => {
+  it("lê subtítulos (inclusive os do Sync) e o texto sem subtítulo vira a observação", () => {
+    const t = lerAnalise("Fala, Pri!\nTudo certo.\n\nDestaques:\n- Tirzepatida subiu\n\n### PONTOS DE ATENÇÃO\n- Meta\n\nContexto:\n- férias");
+    expect(t).toEqual({ observacao: "Fala, Pri!\nTudo certo.", destaques: "- Tirzepatida subiu", comercial: "", atencao: "- Meta", contexto: "- férias" });
+    expect(lerAnalise(escreverAnalise(t))).toEqual(t);
+    expect(blocosParaCliente(t).map((b) => b.titulo)).toEqual(["Observação", "Principais destaques", "Pontos de atenção"]);
+  });
+
+  it("o contexto não vai para o texto do cliente", () => {
+    const texto = montarTextoFechamento("Clínica", retrato(), normalizarEstrutura({ mensal: [{ id: "analise", ativa: true }] }).mensal, {
+      analise: escreverAnalise({ observacao: "Bom mês.", destaques: "", comercial: "", atencao: "", contexto: "segredo interno" }),
+    });
+    expect(texto).toContain("Bom mês.");
+    expect(texto).not.toContain("segredo interno");
   });
 });

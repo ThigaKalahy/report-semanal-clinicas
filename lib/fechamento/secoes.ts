@@ -11,6 +11,8 @@ import type { ItemValor } from "./calculos";
 import { calcularResultado, atingimentoDaMeta, variacao, serieAnual } from "./dados";
 import type { DadosFechamento } from "./dados";
 import { isoParaBR, MESES } from "./periodo";
+import { lerAnalise, blocosParaCliente } from "./analise";
+import { visaoCaixa } from "./visao";
 
 /**
  * Transforma o retrato do fechamento nas seções do relatório, obedecendo a
@@ -55,9 +57,16 @@ export interface TabelaSecao {
 }
 
 export interface AcaoPlano {
+  /** Título da ação. */
   texto: string;
+  /** Responsáveis, separados por " + ". */
   responsavel: string;
+  /** DD/MM/AAAA ou texto livre ("sem prazo"). */
   prazo: string;
+  /** O que fazer, em 1 ou 2 frases. */
+  descricao?: string;
+  /** Como medir se funcionou. */
+  indicador?: string;
 }
 
 export interface SecaoMontada {
@@ -194,10 +203,11 @@ const MONTADORES: Record<string, Montador> = {
   caixaMes(d) {
     const c = d.caixaMes;
     if (!c) return { linhas: [], tabelas: [], vazia: "sem fonte de Despesas" };
+    const vc = visaoCaixa(d)!;
     const linhas: LinhaSecao[] = [
       { rotulo: "Despesas vencidas até aqui", valor: brl(c.despesasAteAData) },
-      { rotulo: "A vencer até o fim do mês", valor: brl(c.provisionado) },
-      { rotulo: "Despesas do mês", valor: brl(c.despesasDoMes) },
+      { rotulo: "Provisionado a pagar", valor: brl(vc.provisionado), extra: vc.regraProvisionado },
+      { rotulo: "Vencimentos no mês", valor: brl(c.despesasDoMes) },
     ];
     if (c.mediaDespesas !== null && c.mediaDespesas !== undefined && c.mesesDaMedia) {
       const var_ = variacao(c.despesasDoMes, c.mediaDespesas);
@@ -207,10 +217,15 @@ const MONTADORES: Record<string, Montador> = {
         extra: var_ !== null ? `mês atual ${textoVariacao(var_)}` : undefined,
       });
     }
-    if (c.saldoProjetado !== null) {
-      linhas.push({ rotulo: "Saldo projetado", valor: brl(c.saldoProjetado), tom: c.saldoProjetado >= 0 ? "bom" : "ruim" });
+    if (vc.saldoProjetado !== null) {
+      linhas.push({ rotulo: "Saldo projetado do mês", valor: brl(vc.saldoProjetado), tom: vc.saldoProjetado >= 0 ? "bom" : "ruim" });
     }
-    return { linhas, tabelas: [], nota: "Saldo projetado = projeção do faturamento − despesas do mês (por vencimento)." };
+    return {
+      linhas, tabelas: [],
+      nota: vc.media !== null
+        ? "Como no Sync: o que falta pagar é estimado pela média dos meses anteriores. Saldo projetado = projeção do faturamento − (já pago + provisionado)."
+        : "Sem média dos meses anteriores: o provisionado são os vencimentos que ainda faltam no mês.",
+    };
   },
 
   funilLeads(d, _item, on) {
@@ -390,7 +405,10 @@ const MONTADORES: Record<string, Montador> = {
   },
 
   analise(_d, _item, _on, _v, ctx) {
-    const texto = (ctx.analise ?? "").trim();
+    // o contexto do período é apoio interno: não vai para o cliente
+    const texto = blocosParaCliente(lerAnalise(ctx.analise))
+      .map((b, i) => (i === 0 && b.titulo === "Observação" ? b.texto : `${b.titulo}:\n${b.texto}`))
+      .join("\n\n");
     const acoes = (ctx.acoes ?? []).filter((a) => a.texto.trim());
     if (!texto && acoes.length === 0) return { linhas: [], tabelas: [], vazia: "a análise ainda não foi escrita" };
     return { linhas: [], tabelas: [], texto, acoes };
@@ -512,6 +530,7 @@ export function montarTextoFechamento(
       s.acoes.forEach((a, i) => {
         const detalhes = [a.responsavel.trim(), a.prazo.trim() && `até ${a.prazo.trim()}`].filter(Boolean).join(", ");
         linhas.push(`${i + 1}. ${a.texto.trim()}${detalhes ? ` — ${detalhes}` : ""}`);
+        if (a.descricao?.trim()) linhas.push(`   ${a.descricao.trim()}`);
       });
     }
     if (linhas.length > 1) partes.push(linhas.join("\n"));

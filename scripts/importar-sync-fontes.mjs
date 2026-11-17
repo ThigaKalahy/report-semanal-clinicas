@@ -103,7 +103,7 @@ const bruto = JSON.parse(readFileSync(".import-sync/configurar-bruto.json", "utf
 let clinicas, existentes;
 try {
   clinicas = await api("clinicas?select=id,nome");
-  existentes = await api("fontes_dados?select=clinica_id,tipo");
+  existentes = await api("fontes_dados?select=id,clinica_id,tipo,sheet_id,aba_nome,coluna_data,mapeamento");
 } catch (e) {
   console.error("Não consegui ler o banco:", e.cause?.code ?? e.message);
   process.exit(1);
@@ -112,6 +112,50 @@ const porNome = new Map(clinicas.map((c) => [chaveNome(c.nome), c]));
 const jaTem = new Set(existentes.map((e) => `${e.clinica_id}:${e.tipo}`));
 
 console.log(GRAVAR ? "MODO GRAVAÇÃO\n" : "SIMULAÇÃO (use --gravar para gravar)\n");
+
+// --completar: nas fontes que JÁ existem aqui e usam a MESMA planilha do Sync,
+// preenche só o que está vazio — colunas opcionais sem letra (paciente, 1ª vez…)
+// e a aba única como alternativa para os meses sem aba mensal. Nada preenchido muda.
+if (process.argv.includes("--completar")) {
+  let mudadas = 0;
+  for (const item of Object.values(bruto)) {
+    const nome = item.perfil?.clinicaNome;
+    const padrao = item.componentes?.[0]?.padraoInicial ?? {};
+    const nossa = nome && porNome.get(chaveNome(nome));
+    if (!nossa) continue;
+    for (const [chave, fonteSync] of Object.entries(padrao)) {
+      const def = FONTES[chave];
+      if (!def || !fonteSync?.sheetId) continue;
+      const aqui = existentes.find((e) => e.clinica_id === nossa.id && e.tipo === def.tipo);
+      if (!aqui) continue;
+      if (aqui.sheet_id !== fonteSync.sheetId) {
+        console.log(`${nome} · ${def.rotulo}: planilha diferente da do Sync — mantida como está`);
+        continue;
+      }
+      const mapa = { ...(aqui.mapeamento ?? {}) };
+      const novidades = [];
+      for (const [campoSync, letra] of Object.entries(fonteSync.colunas ?? {})) {
+        let nosso = def.de[campoSync];
+        if (!nosso || nosso === "coluna_data" || !/^[A-Z]+$/.test(String(letra))) continue;
+        if (def.tipo === "despesa" && nosso === "data_pagamento" && letra === aqui.coluna_data) continue;
+        if (typeof mapa[nosso] === "string" && mapa[nosso].trim()) continue; // já preenchido aqui
+        mapa[nosso] = letra;
+        novidades.push(`${nosso} ${letra}`);
+      }
+      const temAbaMes = mapa.abas_mensais && Object.keys(mapa.abas_mensais).length > 0;
+      if (def.abaUnica && fonteSync.aba && !String(mapa.aba_base ?? "").trim() && temAbaMes) {
+        mapa.aba_base = fonteSync.aba;
+        novidades.push(`aba única "${fonteSync.aba}" para os meses sem aba`);
+      }
+      if (!novidades.length) continue;
+      if (GRAVAR) await api(`fontes_dados?id=eq.${aqui.id}`, { method: "PATCH", body: JSON.stringify({ mapeamento: mapa }) });
+      console.log(`${nome} · ${def.rotulo}: ${GRAVAR ? "completada" : "seria completada"} com ${novidades.join(", ")}`);
+      mudadas++;
+    }
+  }
+  console.log(`\n${mudadas} fonte(s) ${GRAVAR ? "completada(s)" : "a completar"}.`);
+  process.exit(0);
+}
 
 let criadas = 0;
 const semAcesso = [];

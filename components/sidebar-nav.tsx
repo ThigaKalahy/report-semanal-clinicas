@@ -11,7 +11,8 @@ import {
   Target,
   CalendarOff,
   ClipboardCheck,
-  Landmark,
+  CalendarDays,
+  History,
   Columns3,
   ChevronDown,
 } from "lucide-react";
@@ -27,7 +28,8 @@ const mainNavItems = [
 
 /** Módulo financeiro: tudo o que veio do Sync Financeiro mora aqui dentro. */
 const financeiroNavItems = [
-  { href: "/fechamentos", label: "Fechamentos", icon: Landmark },
+  { href: "/fechamentos", label: "Fechamentos do mês", icon: CalendarDays },
+  { href: "/fechamentos/historico", label: "Histórico", icon: History },
   { href: "/fechamentos/comparativos", label: "Comparativos", icon: Columns3 },
 ];
 
@@ -38,7 +40,7 @@ const configNavItems = [
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const noFinanceiro = financeiroNavItems.some(({ href }) => pathname === href || pathname.startsWith(href + "/"));
+  const noFinanceiro = financeiroNavItems.some(({ href }) => pathname === href || pathname.startsWith(href + "/")) || pathname.startsWith("/fechamentos-pdf/");
   const [financeiroAberto, setFinanceiroAberto] = useState(noFinanceiro);
   const [estavaNoFinanceiro, setEstavaNoFinanceiro] = useState(noFinanceiro);
 

@@ -16,7 +16,8 @@ const NAV_ITEMS = [
   { label: "Clínicas",        href: "/clinicas",      icon: Building2       },
   { label: "Checkpoint",      href: "/checkpoint",    icon: ClipboardCheck  },
   { label: "Gerar Relatório", href: "/relatorio",     icon: FileText        },
-  { label: "Financeiro · Fechamentos", href: "/fechamentos", icon: Landmark },
+  { label: "Financeiro · Fechamentos do mês", href: "/fechamentos", icon: Landmark },
+  { label: "Financeiro · Histórico", href: "/fechamentos/historico", icon: Landmark },
   { label: "Financeiro · Comparativos", href: "/fechamentos/comparativos", icon: Columns3 },
   { label: "Configurações",   href: "/configuracoes", icon: Settings        },
 ];

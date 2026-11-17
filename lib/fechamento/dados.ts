@@ -98,6 +98,35 @@ export interface Comparativo {
   /** categoria (normalizada) → valor no período anterior. */
   receitasPorCategoria: Record<string, number>;
   despesasPorCategoria: Record<string, number>;
+  // Campos abaixo: ausentes em leituras antigas — sem eles, a variação fica em branco.
+  /** categoria (normalizada) → quantidade de lançamentos no período anterior. */
+  quantidadePorCategoria?: Record<string, number>;
+  /** categoria (normalizada) → nome como está na planilha, para as que só existem no anterior. */
+  nomesCategorias?: Record<string, string>;
+  pacientes?: {
+    atendidos: number | null;
+    ticketMedio: number | null;
+    novos: number | null;
+    ticketNovos: number | null;
+  } | null;
+  leads?: { total: number; agendados: number; conversao: number | null } | null;
+  orcamentos?: {
+    total: number;
+    fechados: number;
+    valorGerado: number;
+    valorFechado: number;
+    conversaoValor: number | null;
+    conversaoQuantidade: number | null;
+  } | null;
+}
+
+/** O que a pessoa decidiu sobre um alerta na conferência. */
+export interface DecisaoAlerta {
+  chave: string;
+  /** "ciente": leu e segue; "manter": o número está certo como está. */
+  acao: "ciente" | "manter";
+  titulo: string;
+  em: string;
 }
 
 export interface DadosFechamento {
@@ -120,10 +149,44 @@ export interface DadosFechamento {
   caixaMes: CaixaMes | null;
   leituras: LeituraFonte[];
   alertas: Alerta[];
-  /** Série do ano até o mês do fechamento (só no mensal; ausente em leituras antigas). */
+  /** Série do ano até o fim do período (ausente em leituras antigas). */
   anual?: MesAnual[];
   /** Presente só em fechamentos trazidos de outro sistema. */
   origem?: OrigemFechamento;
+  /** Decisões da conferência — sobrevivem a uma nova leitura das planilhas. */
+  decisoes?: DecisaoAlerta[];
+  /** Meta cadastrada, guardada quando a meta deste fechamento foi ajustada à mão. */
+  metaOriginal?: number | null;
+}
+
+/** Identidade estável de um alerta, para guardar a decisão entre leituras. */
+export function chaveDoAlerta(a: Pick<Alerta, "area" | "titulo">): string {
+  return `${a.area}|${a.titulo}`
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    // números mudam de uma leitura para outra ("3 linhas" → "4 linhas"): ficam fora da chave
+    .replace(/\d+([.,]\d+)*/g, "#").replace(/\s+/g, " ").trim();
+}
+
+/** Alertas graves e de atenção ainda sem decisão; os graves travam os indicadores. */
+export function alertasPendentes(d: Pick<DadosFechamento, "alertas" | "decisoes">): Alerta[] {
+  const decididos = new Set((d.decisoes ?? []).map((x) => x.chave));
+  return d.alertas.filter((a) => a.gravidade !== "info" && !decididos.has(chaveDoAlerta(a)));
+}
+
+/** Troca a meta deste fechamento e refaz o ritmo com ela, sem reler planilha. null volta à meta cadastrada. */
+export function aplicarMeta(d: DadosFechamento, meta: number | null): DadosFechamento {
+  const metaOriginal = d.metaOriginal !== undefined ? d.metaOriginal : d.meta;
+  const nova = meta && meta > 0 ? Math.round(meta * 100) / 100 : metaOriginal;
+  const ritmo = d.ritmo
+    ? calcularRitmo({
+        faturamentoMes: d.ritmo.faturamentoMes, diasUteisDecorridos: d.ritmo.diasUteisDecorridos,
+        diasUteisMes: d.ritmo.diasUteisMes, meta: nova,
+      })
+    : null;
+  const { alertas: _velhos, ...resto } = d;
+  void _velhos;
+  const semAlertas = { ...resto, meta: nova, ritmo, metaOriginal: nova === metaOriginal ? undefined : metaOriginal };
+  return { ...semAlertas, alertas: gerarAlertas(semAlertas) };
 }
 
 export interface OrigemFechamento {

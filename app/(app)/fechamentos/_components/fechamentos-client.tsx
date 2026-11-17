@@ -58,14 +58,16 @@ function dataHoraBR(iso: string | null): string {
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function FechamentosClient({
-  clinicas, linhas, erroBanco,
+  clinicas, linhas, erroBanco, buscaInicial = "",
 }: {
   clinicas: { id: string; nome: string }[];
   linhas: LinhaFechamento[];
   erroBanco: string | null;
+  /** Vindo de "?cliente=": já abre filtrado por essa clínica. */
+  buscaInicial?: string;
 }) {
   const router = useRouter();
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(buscaInicial);
   const [filtroTipo, setFiltroTipo] = useState(TODOS);
   const [filtroStatus, setFiltroStatus] = useState(TODOS);
 
@@ -127,9 +129,10 @@ export function FechamentosClient({
     <div className="p-8 space-y-6 max-w-6xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold font-heading">Fechamentos</h1>
+          <p className="text-sm text-muted-foreground">Relatórios Financeiros</p>
+          <h1 className="text-2xl font-semibold">Histórico</h1>
           <p className="text-sm text-muted-foreground">
-            Relatórios financeiros mensais e quinzenais: conferência das planilhas, indicadores, análise e entrega.
+            Todos os fechamentos, de todos os períodos: busque por clínica, tipo ou estado.
           </p>
         </div>
         <div className="flex gap-2">

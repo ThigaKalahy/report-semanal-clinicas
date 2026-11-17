@@ -145,13 +145,22 @@ export async function coletarFechamento(
   // ── Período anterior (base das variações) — falha aqui não é erro do fechamento ──
   const comparativo: Comparativo = {
     rotulo: rotuloCurto(anterior), faturamento: null, despesas: null,
-    receitasPorCategoria: {}, despesasPorCategoria: {},
+    receitasPorCategoria: {}, despesasPorCategoria: {}, quantidadePorCategoria: {}, nomesCategorias: {},
+    pacientes: null, leads: null, orcamentos: null,
   };
   if (fFat && faturamento) {
     try {
       const r = calcularVendas(await linhasDoMes(fFat, anterior.ano, anterior.mes), colVendas, anterior.inicio, anterior.fim);
       comparativo.faturamento = r.total;
-      for (const c of r.porCategoria) comparativo.receitasPorCategoria[normalizarTexto(c.nome)] = c.valor;
+      for (const c of r.porCategoria) {
+        comparativo.receitasPorCategoria[normalizarTexto(c.nome)] = c.valor;
+        comparativo.quantidadePorCategoria![normalizarTexto(c.nome)] = c.quantidade;
+        comparativo.nomesCategorias![normalizarTexto(c.nome)] = c.nome;
+      }
+      comparativo.pacientes = {
+        atendidos: r.pacientes.atendidos, ticketMedio: r.pacientes.ticketMedio,
+        novos: r.pacientes.novos, ticketNovos: r.pacientes.ticketNovos,
+      };
     } catch { /* sem aba do mês anterior: as variações ficam em branco */ }
   }
   if (fDesp && despesas) {
@@ -160,6 +169,7 @@ export async function coletarFechamento(
       comparativo.despesas = r.total;
       for (const g of r.porGrupo) for (const c of g.categorias) {
         comparativo.despesasPorCategoria[normalizarTexto(c.nome)] = c.valor;
+        comparativo.nomesCategorias![normalizarTexto(c.nome)] = c.nome;
       }
     } catch { /* idem */ }
   }
@@ -171,18 +181,33 @@ export async function coletarFechamento(
   const fOrc = fonte("orcamentos");
   const orcamentos = await ler("Orçamentos", !!fOrc, () => coletarOrcamentos(fOrc!, inicio, fim),
     (r) => `${r.total} orçamentos no período`);
+  if (fOrc && orcamentos) {
+    try {
+      const r = await coletarOrcamentos(fOrc, anterior.inicio, anterior.fim);
+      comparativo.orcamentos = {
+        total: r.total, fechados: r.fechados, valorGerado: r.valorGerado, valorFechado: r.valorFechado,
+        conversaoValor: r.conversaoValor, conversaoQuantidade: r.conversaoQuantidade,
+      };
+    } catch { /* sem base anterior */ }
+  }
 
   // ── Leads ──
   const fLeads = fonte("leads");
   const mLeads = mapa(fLeads?.mapeamento ?? null);
-  const leads = await ler("Leads", !!fLeads, async () => calcularLeads(
-    await linhasDaAba(fLeads!),
-    {
-      data: fLeads!.coluna_data, convertido: txt(mLeads.convertido), origem: txt(mLeads.origem),
-      canal: txt(mLeads.canal), interesse: txt(mLeads.interesse), objecao: txt(mLeads.objecao),
-    },
-    inicio, fim, txt(mLeads.valor_conversao) || "sim",
-  ), (r) => `${r.total} leads no período`);
+  const colLeads = {
+    data: fLeads?.coluna_data ?? "", convertido: txt(mLeads.convertido), origem: txt(mLeads.origem),
+    canal: txt(mLeads.canal), interesse: txt(mLeads.interesse), objecao: txt(mLeads.objecao),
+  };
+  const conversaoLeads = txt(mLeads.valor_conversao) || "sim";
+  let linhasLeads: unknown[][] = [];
+  const leads = await ler("Leads", !!fLeads, async () => {
+    linhasLeads = await linhasDaAba(fLeads!);
+    return calcularLeads(linhasLeads, colLeads, inicio, fim, conversaoLeads);
+  }, (r) => `${r.total} leads no período`);
+  if (leads) {
+    const r = calcularLeads(linhasLeads, colLeads, anterior.inicio, anterior.fim, conversaoLeads);
+    comparativo.leads = { total: r.total, agendados: r.agendados, conversao: r.conversao };
+  }
 
   // ── NPS e Google ──
   const fNps = fonte("nps");
@@ -200,9 +225,9 @@ export async function coletarFechamento(
     if (m && m.meta_mensal > 0) meta = m.meta_mensal;
   } catch { /* sem meta: os indicadores de meta ficam em branco */ }
 
-  // ── Série do ano (mensal): base do gráfico e da visão de caixa e competência ──
+  // ── Série do ano: base do gráfico e da visão de caixa e competência (no quinzenal, o mês corrente vai até o dia 15) ──
   const anual: MesAnual[] = [];
-  if (!quinzenal && (fFat || fDesp || fEnt)) {
+  if (fFat || fDesp || fEnt) {
     const iComp = indiceDaColuna(txt(mDesp.competencia));
     const iValorDesp = indiceDaColuna(colDesp.valor);
     const competencia = new Map<string, number>();
@@ -213,7 +238,7 @@ export async function coletarFechamento(
 
     for (let m = 1; m <= mes; m++) {
       const de = new Date(ano, m - 1, 1);
-      const ate = new Date(ano, m - 1, ultimoDiaDoMes(ano, m));
+      const ate = m === mes ? fim : new Date(ano, m - 1, ultimoDiaDoMes(ano, m));
       const item: MesAnual = { mes: chaveAnoMes(ano, m), faturamento: null, recebido: null, despesas: null, despesasCompetencia: null };
       if (fFat && faturamento) {
         try { item.faturamento = calcularVendas(await linhasDoMes(fFat, ano, m), colVendas, de, ate).total; } catch { /* mês sem aba */ }
