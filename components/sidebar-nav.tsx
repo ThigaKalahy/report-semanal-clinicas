@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +12,8 @@ import {
   CalendarOff,
   ClipboardCheck,
   Landmark,
+  Columns3,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +22,13 @@ const mainNavItems = [
   // Antes do report: o checkpoint é a conferência que vem primeiro no fluxo.
   { href: "/checkpoint", label: "Checkpoint", icon: ClipboardCheck },
   { href: "/relatorio", label: "Gerar Report Semanal", icon: FileText },
-  { href: "/fechamentos", label: "Fechamentos", icon: Landmark },
   { href: "/dashboard", label: "Logs", icon: ScrollText },
+];
+
+/** Módulo financeiro: tudo o que veio do Sync Financeiro mora aqui dentro. */
+const financeiroNavItems = [
+  { href: "/fechamentos", label: "Fechamentos", icon: Landmark },
+  { href: "/fechamentos/comparativos", label: "Comparativos", icon: Columns3 },
 ];
 
 const configNavItems = [
@@ -30,9 +38,22 @@ const configNavItems = [
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const noFinanceiro = financeiroNavItems.some(({ href }) => pathname === href || pathname.startsWith(href + "/"));
+  const [financeiroAberto, setFinanceiroAberto] = useState(noFinanceiro);
+  const [estavaNoFinanceiro, setEstavaNoFinanceiro] = useState(noFinanceiro);
+
+  // entrar numa tela do módulo (por link, atalho ou busca) abre o grupo
+  if (noFinanceiro !== estavaNoFinanceiro) {
+    setEstavaNoFinanceiro(noFinanceiro);
+    if (noFinanceiro) setFinanceiroAberto(true);
+  }
 
   function isActive(href: string) {
-    return pathname === href || pathname.startsWith(href + "/");
+    if (pathname === href) return true;
+    if (!pathname.startsWith(href + "/")) return false;
+    // um item mais específico do menu ganha (Comparativos não acende Fechamentos)
+    return !financeiroNavItems.some((i) => i.href !== href && i.href.startsWith(href + "/") &&
+      (pathname === i.href || pathname.startsWith(i.href + "/")));
   }
 
   function navLink(href: string, label: string, Icon: React.ElementType, indent = false) {
@@ -41,6 +62,7 @@ export function SidebarNav() {
       <Link
         key={href}
         href={href}
+        aria-current={active ? "page" : undefined}
         className={cn(
           "flex items-center gap-3 rounded-md py-2 text-sm font-medium transition-colors",
           indent ? "px-5" : "px-3",
@@ -59,21 +81,28 @@ export function SidebarNav() {
     <nav className="space-y-0.5">
       {mainNavItems.map(({ href, label, icon }) => navLink(href, label, icon))}
 
-      {/* Reports Financeiros — em breve */}
-      <div
-        title="Em breve"
+      <button
+        type="button"
+        onClick={() => setFinanceiroAberto((v) => !v)}
+        aria-expanded={financeiroAberto}
+        aria-controls="menu-financeiro"
         className={cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium",
-          "opacity-50 cursor-not-allowed select-none text-sidebar-foreground"
+          "w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          noFinanceiro && !financeiroAberto ? "text-sidebar-primary" : "text-sidebar-foreground"
         )}
-        aria-disabled="true"
       >
         <TrendingUp className="h-4 w-4 shrink-0" />
         <span>Reports Financeiros</span>
-        <span className="ml-auto rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-          em breve
-        </span>
-      </div>
+        <ChevronDown
+          className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", financeiroAberto ? "rotate-0" : "-rotate-90")}
+        />
+      </button>
+      {financeiroAberto && (
+        <div id="menu-financeiro" className="space-y-0.5 pl-4">
+          {financeiroNavItems.map(({ href, label, icon }) => navLink(href, label, icon))}
+        </div>
+      )}
 
       <div className="pt-4 pb-0.5">
         <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest font-heading">
