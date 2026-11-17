@@ -39,7 +39,6 @@ const MESES = [
 
 interface Props {
   clinicaId: string;
-  clinicaNome: string;
   mes: number;
   ano: number;
   metas: MetaComTipo[];
@@ -50,7 +49,6 @@ interface Props {
 
 export function MetasClient({
   clinicaId,
-  clinicaNome,
   mes,
   ano,
   metas,
@@ -112,11 +110,10 @@ export function MetasClient({
   return (
     <>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{clinicaNome}</p>
-          <h1 className="text-2xl font-bold text-foreground font-heading">Metas</h1>
-        </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+        <p className="text-sm text-muted-foreground">
+          Metas do mês e o realizado até agora, em dias úteis.
+        </p>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="gap-2" onClick={() => handleCopiar(false)} disabled={isCopying}>
             {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
@@ -170,7 +167,7 @@ export function MetasClient({
             {metas.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
-                  Nenhuma meta para este mês. Clique em "Adicionar meta".
+                  Nenhuma meta para este mês. Clique em “Adicionar meta”.
                 </TableCell>
               </TableRow>
             ) : (
@@ -323,7 +320,7 @@ export function MetasClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir meta?</AlertDialogTitle>
             <AlertDialogDescription>
-              A meta de "{deleting?.tipos_meta.nome}" para {MESES[mes - 1]}/{ano} será removida.
+              A meta de “{deleting?.tipos_meta.nome}” para {MESES[mes - 1]}/{ano} será removida.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

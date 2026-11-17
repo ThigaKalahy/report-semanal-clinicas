@@ -3,7 +3,7 @@ export const revalidate = 0;
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { rotuloCurto } from "@/lib/fechamento/periodo";
+import { rotuloCurto, MESES } from "@/lib/fechamento/periodo";
 import type { TipoFechamento, Quinzena } from "@/lib/fechamento/periodo";
 import { calcularResultado, atingimentoDaMeta, variacao } from "@/lib/fechamento/dados";
 import type { DadosFechamento } from "@/lib/fechamento/dados";
@@ -24,6 +24,11 @@ interface Periodo {
 const chave = (p: Periodo) => `${p.tipo}:${p.ano}:${p.mes}:${p.quinzena ?? 0}`;
 const href = (p: Periodo) =>
   `/fechamentos/comparativos?tipo=${p.tipo}&ano=${p.ano}&mes=${p.mes}${p.quinzena ? `&q=${p.quinzena}` : ""}`;
+const TIPOS: { tipo: TipoFechamento; rotulo: string }[] = [
+  { tipo: "mensal", rotulo: "Mensal" },
+  { tipo: "quinzenal", rotulo: "Quinzenal" },
+];
+const mesAbrev = (m: number) => MESES[m - 1].slice(0, 3);
 const TOM_BOM = "text-emerald-600 dark:text-emerald-400";
 const TOM_RUIM = "text-red-600 dark:text-red-400";
 
@@ -46,10 +51,18 @@ export default async function ComparativosPage({ searchParams }: Props) {
   const periodos = [...new Map(todos.map((f) => [chave(f), { tipo: f.tipo, ano: f.ano, mes: f.mes, quinzena: f.quinzena }])).values()]
     .sort((a, b) => b.ano - a.ano || b.mes - a.mes || (b.quinzena ?? 3) - (a.quinzena ?? 3) || a.tipo.localeCompare(b.tipo));
 
-  const pedido: Periodo | null = sp.tipo && sp.ano && sp.mes
-    ? { tipo: sp.tipo === "quinzenal" ? "quinzenal" : "mensal", ano: Number(sp.ano), mes: Number(sp.mes), quinzena: sp.q === "1" || sp.q === "2" ? (Number(sp.q) as Quinzena) : null }
+  // Sem escolha: o período mais recente. Só o tipo: o mais recente daquele tipo.
+  const tipoPedido: TipoFechamento | null = sp.tipo === "quinzenal" ? "quinzenal" : sp.tipo === "mensal" ? "mensal" : null;
+  const pedido: Periodo | null = tipoPedido && sp.ano && sp.mes
+    ? { tipo: tipoPedido, ano: Number(sp.ano), mes: Number(sp.mes), quinzena: sp.q === "1" || sp.q === "2" ? (Number(sp.q) as Quinzena) : null }
     : null;
-  const atual = (pedido && periodos.find((p) => chave(p) === chave(pedido))) || periodos[0] || null;
+  const atual = (pedido && periodos.find((p) => chave(p) === chave(pedido)))
+    || (tipoPedido && periodos.find((p) => p.tipo === tipoPedido))
+    || periodos[0] || null;
+
+  // os períodos do tipo escolhido, agrupados por ano
+  const doTipo = atual ? periodos.filter((p) => p.tipo === atual.tipo) : [];
+  const anos = [...new Set(doTipo.map((p) => p.ano))];
 
   const linhas = atual
     ? todos.filter((f) => chave(f) === chave(atual) && f.dados)
@@ -92,17 +105,53 @@ export default async function ComparativosPage({ searchParams }: Props) {
         <p className="text-sm text-muted-foreground">Ainda não há fechamentos para comparar.</p>
       ) : (
         <>
-          <nav aria-label="Período" className="flex gap-2 flex-wrap">
-            {periodos.map((p) => {
-              const ativo = atual && chave(p) === chave(atual);
-              return (
-                <Link key={chave(p)} href={href(p)} aria-current={ativo ? "page" : undefined}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${ativo ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
-                  <span className="capitalize">{p.tipo}</span> · {rotuloCurto(p)}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="rounded-lg border p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <nav aria-label="Tipo de fechamento" className="inline-flex rounded-md border p-0.5 bg-muted/40">
+                {TIPOS.map(({ tipo, rotulo }) => {
+                  const qtd = periodos.filter((p) => p.tipo === tipo).length;
+                  const ativo = atual?.tipo === tipo;
+                  if (qtd === 0) {
+                    return (
+                      <span key={tipo} aria-disabled="true" title="Ainda não há fechamentos deste tipo"
+                        className="px-3 py-1 text-sm rounded text-muted-foreground/50 cursor-not-allowed">{rotulo}</span>
+                    );
+                  }
+                  return (
+                    <Link key={tipo} href={`/fechamentos/comparativos?tipo=${tipo}`} aria-current={ativo ? "page" : undefined}
+                      className={`px-3 py-1 text-sm rounded transition-colors ${ativo ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}>
+                      {rotulo} <span className="text-xs text-muted-foreground tabular-nums">({qtd})</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+              {atual && (
+                <p className="text-sm">
+                  <span className="text-muted-foreground">Período: </span>
+                  <span className="font-medium">{rotuloCurto(atual)}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {anos.map((ano) => (
+                <div key={ano} className="flex items-start gap-3">
+                  <span className="w-12 shrink-0 pt-1 text-xs font-semibold text-muted-foreground tabular-nums">{ano}</span>
+                  <nav aria-label={`Períodos de ${ano}`} className="flex gap-1.5 flex-wrap">
+                    {doTipo.filter((p) => p.ano === ano).map((p) => {
+                      const ativo = atual && chave(p) === chave(atual);
+                      return (
+                        <Link key={chave(p)} href={href(p)} aria-current={ativo ? "page" : undefined} title={rotuloCurto(p)}
+                          className={`rounded-full border px-3 py-1 text-xs capitalize transition-colors ${ativo ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                          {p.tipo === "quinzenal" ? `${p.quinzena}ª ${mesAbrev(p.mes)}` : mesAbrev(p.mes)}
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="rounded-lg border overflow-x-auto">
             <table className="w-full text-sm">
